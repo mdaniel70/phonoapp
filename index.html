@@ -5,73 +5,108 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Teachers:wght@400;800&display=swap" rel="stylesheet">
-    <style>body { font-family: 'Teachers', sans-serif; }</style>
+    <style>
+        body { font-family: 'Teachers', sans-serif; }
+        .sticker { animation: pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes pop { 0% { transform: scale(0); } 100% { transform: scale(1); } }
+    </style>
 </head>
-<body class="bg-slate-100 p-8">
+<body class="bg-blue-50 min-h-screen flex flex-col items-center p-6">
 
-    <div class="max-w-md mx-auto bg-white rounded-3xl p-8 shadow-xl text-center border-2 border-slate-200">
-        <h1 class="text-3xl font-black text-slate-900 mb-6 uppercase tracking-tight">Phonogram Lab</h1>
-        
-        <div class="w-full h-48 bg-purple-50 rounded-2xl flex items-center justify-center mb-8 border-2 border-dashed border-purple-200">
-            <span class="text-7xl font-black text-purple-600">sh</span>
+    <div class="w-full max-w-2xl mb-6">
+        <div class="flex justify-between items-end mb-2 px-4">
+            <h2 class="text-blue-900 font-black uppercase tracking-widest text-sm">Sticker Book</h2>
+            <div class="text-blue-400 font-bold" id="counter">0 / 15</div>
         </div>
-
-        <div class="space-y-4">
-            <button id="record-btn" class="w-full bg-purple-600 text-white py-4 rounded-full font-black text-xl uppercase hover:bg-purple-700 transition-all flex items-center justify-center gap-2">
-                <div id="mic-icon" class="w-3 h-3 bg-white rounded-full"></div>
-                Start Recording
-            </button>
-
-            <p id="status" class="text-slate-500 font-bold">Press the button and say the sound.</p>
-
-            <div id="playback-container" class="hidden pt-4 border-t border-slate-100">
-                <p class="text-sm text-slate-400 mb-2 uppercase font-bold">Your Recording:</p>
-                <audio id="audio-playback" controls class="w-full"></audio>
+        <div id="sticker-tray" class="bg-white rounded-2xl p-4 min-h-[80px] flex flex-wrap gap-2 border-4 border-blue-100 shadow-inner">
             </div>
-        </div>
     </div>
 
+    <div class="max-w-md w-full bg-white rounded-[3rem] p-10 text-center shadow-2xl border-b-8 border-slate-200">
+        
+        <div id="phonogram-card" class="text-9xl font-black text-slate-900 mb-10 h-32 flex items-center justify-center">
+            ...
+        </div>
+
+        <button id="main-btn" class="w-full bg-purple-600 text-white py-6 rounded-3xl font-black text-2xl uppercase shadow-lg hover:brightness-110 active:scale-95 transition-all mb-4">
+            Push to Speak
+        </button>
+        
+        <p id="status-msg" class="text-slate-400 font-bold uppercase text-xs tracking-widest">Loading Session...</p>
+    </div>
+
+    <audio id="teacher-audio"></audio>
+
     <script>
+        // FULL LIST OF 70 (Shortened for example)
+        const allPhonograms = [
+            { letters: 'sh' }, { letters: 'ch' }, { letters: 'th' }, { letters: 'ou' }, 
+            { letters: 'ow' }, { letters: 'er' }, { letters: 'ir' }, { letters: 'ur' },
+            { letters: 'ay' }, { letters: 'ai' }, { letters: 'oy' }, { letters: 'oi' }, { letters: 'a'},{ letters: 'wor'}, { letters: 'b'}, { letters: 'ear'}, { letters: 'c'}, { letters: 'ee'}, { letters: 'd'}, { letters: 'ph'}, { letters: 'e'}, { letters: 'wh'}, { letters: 'f'}, { letters: 'oo'}, { letters: 'g'}, { letters: 'oa'}, { letters: 'h'}, { letters: 'oe'}, { letters: 'i'}, { letters: 'ed'}, { letters: 'j'}, { letters: 'ea'}, { letters: 'k'}, { letters: 'ar'}, { letters: 'l'}, { letters: 'ck'}, { letters: 'm'}, { letters: 'wr'}, { letters: 'n'}, { letters: 'tch'}, { letters: 'o'}, { letters: 'dge'}, { letters: 'p'}, { letters: 'aw'}, { letters: 'qu'}, { letters: 'au'}, { letters: 'r'}, { letters: 'kn'}, { letters: 's'}, { letters: 'gn'}, { letters: 't'}, { letters: 'or'}, { letters: 'u'}, { letters: 'ng'}, { letters: 'v'}, { letters: 'ew'}, { letters: 'ui'}, { letters: 'w'}, { letters: 'ey'}, { letters: 'x'}, { letters: 'ie'}, { letters: 'igh'}, { letters: 'y'}, { letters: 'ei'}, { letters: 'z'}, { letters: 'eigh'}, { letters: 'ci'}, { letters: 'si'}, { letters: 'ti'}, { letters: 'ough'}  
+            // Add all 70 here...
+        ];
+
+        const stickers = ["⭐", "🎨", "🚀", "🦄", "🦖", "🍎", "🎈", "💎", "🦁", "🍦"];
+        let currentSession = [];
+        let currentIndex = 0;
         let mediaRecorder;
-        let audioChunks = [];
-        const recordBtn = document.getElementById('record-btn');
-        const micIcon = document.getElementById('mic-icon');
-        const statusText = document.getElementById('status');
-        const playbackContainer = document.getElementById('playback-container');
-        const audioPlayback = document.getElementById('audio-playback');
 
-        recordBtn.addEventListener('click', async () => {
-            if (!mediaRecorder || mediaRecorder.state === "inactive") {
-                // START RECORDING
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                mediaRecorder = new MediaRecorder(stream);
-                audioChunks = [];
+        // 1. SHUFFLE AND PICK 15
+        function startNewSession() {
+            let shuffled = [...allPhonograms].sort(() => Math.random() - 0.5);
+            currentSession = shuffled.slice(0, 15);
+            updateDisplay();
+        }
 
-                mediaRecorder.ondataavailable = (event) => {
-                    audioChunks.push(event.data);
-                };
+        function updateDisplay() {
+            const current = currentSession[currentIndex];
+            document.getElementById('phonogram-card').innerText = current.letters;
+            document.getElementById('counter').innerText = `${currentIndex + 1} / 15`;
+        }
 
-                mediaRecorder.onstop = () => {
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                    const audioUrl = URL.createObjectURL(audioBlob);
-                    audioPlayback.src = audioUrl;
-                    playbackContainer.classList.remove('hidden');
-                };
+        function addSticker() {
+            const tray = document.getElementById('sticker-tray');
+            const randomSticker = stickers[Math.floor(Math.random() * stickers.length)];
+            const span = document.createElement('span');
+            span.className = "text-3xl sticker";
+            span.innerText = randomSticker;
+            tray.appendChild(span);
+        }
 
-                mediaRecorder.start();
-                recordBtn.innerText = "Stop Recording";
-                recordBtn.classList.replace('bg-purple-600', 'bg-red-500');
-                micIcon.classList.add('animate-pulse');
-                statusText.innerText = "Listening to your sound...";
+        function handleResult(isCorrect) {
+            if (isCorrect) {
+                addSticker();
+                document.getElementById('status-msg').innerText = "Awesome! +1 Sticker";
             } else {
-                // STOP RECORDING
-                mediaRecorder.stop();
-                recordBtn.innerText = "Start Recording";
-                recordBtn.classList.replace('bg-red-500', 'bg-purple-600');
-                micIcon.classList.remove('animate-pulse');
-                statusText.innerText = "Recording saved! Listen below.";
+                document.getElementById('status-msg').innerText = "Listen to the teacher...";
+                const audio = document.getElementById('teacher-audio');
+                audio.src = `audio/${currentSession[currentIndex].letters}.mp3`;
+                audio.play();
             }
+
+            // Move to next after a delay
+            setTimeout(() => {
+                currentIndex++;
+                if (currentIndex < 15) {
+                    updateDisplay();
+                    document.getElementById('status-msg').innerText = "Ready for next sound";
+                } else {
+                    document.getElementById('phonogram-card').innerText = "🏆";
+                    document.getElementById('status-msg').innerText = "Session Complete!";
+                }
+            }, 3000);
+        }
+
+        // Setup the recording (similar to your previous code)
+        // For now, simulated button click:
+        const mainBtn = document.getElementById('main-btn');
+        mainBtn.addEventListener('click', () => {
+            // This is where the Gemini check will eventually go!
+            document.getElementById('status-msg').innerText = "Checking sound...";
+            setTimeout(() => handleResult(Math.random() > 0.4), 1000);
         });
+
+        startNewSession();
     </script>
 </body>
 </html>
