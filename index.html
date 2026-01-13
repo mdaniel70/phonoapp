@@ -76,7 +76,7 @@
         let audioChunks = [];
 
         // --- PASTE YOUR GOOGLE APPS SCRIPT URL HERE ---
-        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyQoDYQcyE2ygZhIJULxq-fhUFZ-uEdVibiDdFSfROttgUseB_wFKo7T_6PJRg_ALx5/exec"; 
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx7mYiOYNPwQyjpVaUrm4rz7LkrPx8m4v9G8umx5b7KLd3OfiR-4gdvsGIzRGHg2qOS/exec"; 
 
         function startNewSession() {
             let shuffled = [...allPhonograms].sort(() => Math.random() - 0.5);
@@ -213,29 +213,22 @@
         };
         
         mediaRecorder.onstop = () => {
-            document.getElementById('status-msg').innerText = "Analyzing...";
-            // We combine the chunks into a single high-quality Blob
-            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-            
-            // LOGIC CHECK: If the recording is too small, it didn't work
-            if (audioBlob.size < 1000) {
-                document.getElementById('status-msg').innerText = "Mic error - try again";
-                updateDisplay();
-                return;
-            }
-            
-            checkWithAI(audioBlob, currentSession[currentIndex].letters);
-        };
+    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+    
+    // DEBUG: This checks if the recording is effectively empty
+    console.log("Audio Size:", audioBlob.size, "bytes");
 
-        mediaRecorder.start();
-        mainBtn.innerText = "Stop Recording";
-        mainBtn.classList.replace('bg-purple-600', 'bg-red-500');
-    } else {
-        mediaRecorder.stop();
-        mainBtn.innerText = "Processing...";
-        mainBtn.classList.replace('bg-red-500', 'bg-yellow-500');
+    if (audioBlob.size < 2000) { 
+        document.getElementById('status-msg').innerText = "Too quiet! Try again.";
+        // Reset the button so they can try again
+        mainBtn.innerText = "Push to Speak";
+        mainBtn.classList.replace('bg-yellow-500', 'bg-purple-600');
+        return; 
     }
-});
+
+    document.getElementById('status-msg').innerText = "Analyzing...";
+    checkWithAI(audioBlob, currentSession[currentIndex].letters);
+};
 
         document.getElementById('reset-btn').addEventListener('click', startNewSession);
         startNewSession();
