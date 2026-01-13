@@ -156,27 +156,39 @@
         }
 
         async function checkWithAI(audioBlob, phonogramLetters) {
-            document.getElementById('card-letters').style.display = 'none';
-            document.getElementById('card-loader').style.display = 'block';
-            const reader = new FileReader();
-            reader.readAsDataURL(audioBlob);
-            reader.onloadend = async () => {
-                const base64Audio = reader.result.split(',')[1];
-                try {
-                    const response = await fetch(APPS_SCRIPT_URL, {
-                        method: "POST",
-                        body: JSON.stringify({ phonogram: phonogramLetters, audio: base64Audio })
-                    });
-                    const result = await response.text();
-                    document.getElementById('card-loader').style.display = 'none';
-                    handleResult(result.trim() === "CORRECT");
-                } catch (error) {
-                    document.getElementById('status-msg').innerText = "Connection Error";
-                    document.getElementById('card-loader').style.display = 'none';
-                    document.getElementById('card-letters').style.display = 'block';
-                }
-            };
+    // Show Loader
+    document.getElementById('card-letters').style.display = 'none';
+    document.getElementById('card-loader').style.display = 'block';
+
+    const reader = new FileReader();
+    reader.readAsDataURL(audioBlob);
+    reader.onloadend = async () => {
+        const base64Audio = reader.result.split(',')[1];
+        try {
+            // We add 'follow' to the redirect property here
+            const response = await fetch(APPS_SCRIPT_URL, {
+                method: "POST",
+                body: JSON.stringify({
+                    phonogram: phonogramLetters,
+                    audio: base64Audio
+                }),
+                redirect: "follow" 
+            });
+
+            const result = await response.text();
+            document.getElementById('card-loader').style.display = 'none';
+            
+            // Check if the AI said 'CORRECT'
+            handleResult(result.includes("CORRECT"));
+
+        } catch (error) {
+            console.error("Connection Error:", error);
+            document.getElementById('status-msg').innerText = "Connection Error";
+            document.getElementById('card-loader').style.display = 'none';
+            document.getElementById('card-letters').style.display = 'block';
         }
+    };
+}
 
         const mainBtn = document.getElementById('main-btn');
         mainBtn.addEventListener('click', async () => {
