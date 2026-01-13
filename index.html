@@ -41,7 +41,9 @@
             PUSH TO SPEAK
         </button>
     </div>
-
+<div id="debug-log" class="mt-8 p-4 bg-gray-800 text-green-400 font-mono text-xs rounded-lg w-full max-w-md overflow-hidden" style="display: block;">
+    DEBUG: Waiting for first recording...
+</div>
     <div id="sticker-shelf" class="mt-12 flex flex-wrap justify-center gap-2 max-w-md"></div>
 
     <audio id="teacher-audio"></audio>
@@ -49,7 +51,7 @@
     <script>
         // --- CONFIGURATION ---
         // REPLACE THE URL BELOW WITH YOUR APPS SCRIPT URL
-        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxM6IkC6sBkU_Vf-NoYPUwn4L2UFlV_XN1r24DKennNDVdEGqqrHV03_2lANG4S8Rxx/exec"; 
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz_EQ5nrl14l6k0alF2PuPOGtm9eJ-FcfkbQcLDQuwxkRf_LVxcM869hVVyJAlgv7Tc/exec"; 
         
         const phonograms = [
             { letters: "sh", sounds: ["sh"] },
@@ -119,7 +121,7 @@
                     draw();
 
                     // Start Recorder
-                    mediaRecorder = new MediaRecorder(stream);
+                   mediaRecorder = new MediaRecorder(stream, { audioBitsPerSecond: 128000 });
                     audioChunks = [];
                     mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
                     mediaRecorder.onstop = () => {
@@ -147,31 +149,40 @@
             }
         });
 
-        async function processAudio(blob) {
-            cardLetters.style.display = 'none';
-            cardLoader.style.display = 'block';
+      async function processAudio(blob) {
+    cardLetters.style.display = 'none';
+    cardLoader.style.display = 'block';
 
-            const reader = new FileReader();
-            reader.readAsDataURL(blob);
-            reader.onloadend = async () => {
-                const base64Audio = reader.result.split(',')[1];
-                try {
-                    const response = await fetch(APPS_SCRIPT_URL, {
-                        method: "POST",
-                        body: JSON.stringify({
-                            phonogram: phonograms[currentIndex].letters,
-                            audio: base64Audio
-                        }),
-                        redirect: "follow"
-                    });
-                    const result = await response.text();
-                    handleVerdict(result.trim().toUpperCase() === "CORRECT");
-                } catch (e) {
-                    statusMsg.innerText = "Connection Error";
-                    updateCard();
-                    resetButton();
-                }
-            };
+    const reader = new FileReader();
+    reader.readAsDataURL(blob);
+    reader.onloadend = async () => {
+        const base64Audio = reader.result.split(',')[1];
+        try {
+            const response = await fetch(APPS_SCRIPT_URL, {
+                method: "POST",
+                body: JSON.stringify({
+                    phonogram: phonograms[currentIndex].letters,
+                    audio: base64Audio
+                }),
+                redirect: "follow"
+            });
+            const rawResult = await response.text();
+            
+            // Split the "VERDICT | REASON"
+            const parts = rawResult.split('|');
+            const verdict = parts[0].trim().toUpperCase();
+            const reason = parts[1] ? parts[1].trim() : "No reason provided";
+
+            // Update the Debug Log on screen
+            document.getElementById('debug-log').innerText = `AI HEARD: ${reason}`;
+
+            handleVerdict(verdict === "CORRECT");
+        } catch (e) {
+            statusMsg.innerText = "Connection Error";
+            updateCard();
+            resetButton();
+        }
+    };
         }
 
         function handleVerdict(isCorrect) {
