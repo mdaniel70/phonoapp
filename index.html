@@ -76,7 +76,7 @@
         let audioChunks = [];
 
         // --- PASTE YOUR GOOGLE APPS SCRIPT URL HERE ---
-        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbydsEX829VKyAB6w9UXBu-DNxlLWQYdoTzCD86CIDctzoLqSjEkBPRG3wLfqjqSn6iZ/exec"; 
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyQoDYQcyE2ygZhIJULxq-fhUFZ-uEdVibiDdFSfROttgUseB_wFKo7T_6PJRg_ALx5/exec"; 
 
         function startNewSession() {
             let shuffled = [...allPhonograms].sort(() => Math.random() - 0.5);
@@ -156,38 +156,45 @@
         }
 
         async function checkWithAI(audioBlob, phonogramLetters) {
-    // Show Loader
     document.getElementById('card-letters').style.display = 'none';
     document.getElementById('card-loader').style.display = 'block';
 
-    const reader = new FileReader();
-    reader.readAsDataURL(audioBlob);
-    reader.onloadend = async () => {
-        const base64Audio = reader.result.split(',')[1];
-        try {
-            // We add 'follow' to the redirect property here
-            const response = await fetch(APPS_SCRIPT_URL, {
-                method: "POST",
-                body: JSON.stringify({
-                    phonogram: phonogramLetters,
-                    audio: base64Audio
-                }),
-                redirect: "follow" 
-            });
+    // Helper to convert Blob to Base64
+    const blobToBase64 = blob => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = error => reject(error);
+        reader.readAsDataURL(blob);
+    });
 
-            const result = await response.text();
-            document.getElementById('card-loader').style.display = 'none';
-            
-            // Check if the AI said 'CORRECT'
-            handleResult(result.includes("CORRECT"));
+    try {
+        const base64Audio = await blobToBase64(audioBlob);
+        
+        const response = await fetch(APPS_SCRIPT_URL, {
+            method: "POST",
+            body: JSON.stringify({
+                phonogram: phonogramLetters,
+                audio: base64Audio
+            }),
+            redirect: "follow"
+        });
 
-        } catch (error) {
-            console.error("Connection Error:", error);
-            document.getElementById('status-msg').innerText = "Connection Error";
-            document.getElementById('card-loader').style.display = 'none';
-            document.getElementById('card-letters').style.display = 'block';
+        const result = await response.text();
+        document.getElementById('card-loader').style.display = 'none';
+        
+        // Final Safety: If Gemini returns an error or empty, mark INCORRECT
+        if (result.includes("ERROR") || result === "") {
+            handleResult(false);
+        } else {
+            handleResult(result.trim().toUpperCase() === "CORRECT");
         }
-    };
+
+    } catch (error) {
+        console.error("Upload Error:", error);
+        document.getElementById('status-msg').innerText = "Connection Error";
+        document.getElementById('card-loader').style.display = 'none';
+        document.getElementById('card-letters').style.display = 'block';
+    }
 }
 
         const mainBtn = document.getElementById('main-btn');
