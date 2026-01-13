@@ -6,10 +6,9 @@
     <title>Phonogram Lab</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        .card-inner { transition: transform 0.6s; transform-style: preserve-3d; }
-        .flipped { transform: rotateY(180deg); }
         .sticker { animation: pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         @keyframes pop { 0% { transform: scale(0); } 100% { transform: scale(1); } }
+        .perspective-1000 { perspective: 1000px; }
     </style>
 </head>
 <body class="bg-blue-50 min-h-screen flex flex-col items-center p-4">
@@ -49,7 +48,8 @@
 
     <script>
         // --- CONFIGURATION ---
-        const APPS_SCRIPT_URL = "YOUR_NEW_WEB_APP_URL_HERE"; // <--- PASTE YOUR /exec URL HERE
+        // REPLACE THE URL BELOW WITH YOUR APPS SCRIPT URL
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxM6IkC6sBkU_Vf-NoYPUwn4L2UFlV_XN1r24DKennNDVdEGqqrHV03_2lANG4S8Rxx/exec"; 
         
         const phonograms = [
             { letters: "sh", sounds: ["sh"] },
@@ -60,6 +60,7 @@
 
         let currentIndex = 0;
         let stickers = 0;
+        let attempts = 0; // Tracks tries for the CURRENT card
         let mediaRecorder;
         let audioChunks = [];
         let audioContext, analyser, dataArray, animationId;
@@ -69,11 +70,11 @@
         const cardLetters = document.getElementById('card-letters');
         const cardLoader = document.getElementById('card-loader');
 
-        // Start Up
-        window.onload = () => {
+        // Initial Load
+        window.addEventListener('load', () => {
             updateCard();
             statusMsg.innerText = "Ready for your sounds";
-        };
+        });
 
         function updateCard() {
             cardLetters.innerText = phonograms[currentIndex].letters;
@@ -86,7 +87,7 @@
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     
-                    // Start Visualizer
+                    // Setup Visualizer
                     audioContext = new (window.AudioContext || window.webkitAudioContext)();
                     const source = audioContext.createMediaStreamSource(stream);
                     analyser = audioContext.createAnalyser();
@@ -117,15 +118,16 @@
                     }
                     draw();
 
-                    // Start Recording
+                    // Start Recorder
                     mediaRecorder = new MediaRecorder(stream);
                     audioChunks = [];
                     mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-                    mediaRecorder.onstop = async () => {
+                    mediaRecorder.onstop = () => {
                         cancelAnimationFrame(animationId);
                         const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                         if (audioBlob.size < 2000) {
                             statusMsg.innerText = "Too quiet! Try again.";
+                            resetButton();
                             return;
                         }
                         processAudio(audioBlob);
@@ -167,6 +169,7 @@
                 } catch (e) {
                     statusMsg.innerText = "Connection Error";
                     updateCard();
+                    resetButton();
                 }
             };
         }
@@ -176,26 +179,45 @@
                 statusMsg.innerText = "CORRECT!";
                 playDing();
                 addSticker();
-                setTimeout(() => {
-                    currentIndex = (currentIndex + 1) % phonograms.length;
-                    updateCard();
-                    statusMsg.innerText = "Ready!";
-                    mainBtn.innerText = "PUSH TO SPEAK";
-                    mainBtn.classList.remove('bg-yellow-500');
-                    mainBtn.classList.add('bg-purple-600');
-                }, 2000);
+                attempts = 0; // Reset attempts for next card
+                setTimeout(moveToNextCard, 2000);
             } else {
-                statusMsg.innerText = "Try again!";
-                const audio = document.getElementById('teacher-audio');
-                audio.src = `audio/${phonograms[currentIndex].letters}.mp3`;
-                audio.play().catch(() => console.log("Missing teacher file"));
-                setTimeout(() => {
-                    updateCard();
-                    mainBtn.innerText = "PUSH TO SPEAK";
-                    mainBtn.classList.remove('bg-yellow-500');
-                    mainBtn.classList.add('bg-purple-600');
-                }, 3000);
+                attempts++;
+                if (attempts >= 2) {
+                    // Fail State - Move on after 2 tries
+                    statusMsg.innerText = "Let's move on!";
+                    playTeacherAudio();
+                    attempts = 0; 
+                    setTimeout(moveToNextCard, 4000);
+                } else {
+                    // Try Again State
+                    statusMsg.innerText = "Try one more time!";
+                    playTeacherAudio();
+                    setTimeout(() => {
+                        updateCard();
+                        resetButton();
+                    }, 3000);
+                }
             }
+        }
+
+        function playTeacherAudio() {
+            const audio = document.getElementById('teacher-audio');
+            audio.src = `audio/${phonograms[currentIndex].letters}.mp3`;
+            audio.play().catch(() => console.log("Audio file missing"));
+        }
+
+        function moveToNextCard() {
+            currentIndex = (currentIndex + 1) % phonograms.length;
+            updateCard();
+            statusMsg.innerText = "Ready!";
+            resetButton();
+        }
+
+        function resetButton() {
+            mainBtn.innerText = "PUSH TO SPEAK";
+            mainBtn.classList.remove('bg-yellow-500', 'bg-red-500');
+            mainBtn.classList.add('bg-purple-600');
         }
 
         function playDing() {
@@ -213,7 +235,7 @@
             document.getElementById('sticker-count').innerText = `⭐ ${stickers}`;
             const s = document.createElement('div');
             s.className = "text-3xl sticker";
-            s.innerText = "🍦"; // You can randomize these!
+            s.innerText = "🍦"; 
             document.getElementById('sticker-shelf').appendChild(s);
         }
     </script>
