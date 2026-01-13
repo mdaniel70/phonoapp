@@ -3,12 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phonogram AI Lab</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Teachers:wght@400;800&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Teachers', sans-serif; }
+        
+        /* Spinner Styles */
+        .loader {
+            width: 80px;
+            height: 80px;
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid #9333ea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            display: none;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Sticker Animation */
         .sticker { animation: pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         @keyframes pop { 0% { transform: scale(0); } 100% { transform: scale(1); } }
+
+        /* Overlay Styles */
+        #overlay {
+            display: none;
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            border-radius: 3rem;
+            z-index: 10;
+            justify-content: center;
+            align-items: center;
+            font-size: 8rem;
+        }
     </style>
 </head>
 <body class="bg-blue-50 min-h-screen flex flex-col items-center p-6">
@@ -18,92 +45,165 @@
             <h2 class="text-blue-900 font-black uppercase tracking-widest text-sm">Sticker Book</h2>
             <div class="text-blue-400 font-bold" id="counter">0 / 15</div>
         </div>
-        <div id="sticker-tray" class="bg-white rounded-2xl p-4 min-h-[80px] flex flex-wrap gap-2 border-4 border-blue-100 shadow-inner">
+        <div id="sticker-tray" class="bg-white rounded-2xl p-4 min-h-[85px] flex flex-wrap gap-2 border-4 border-blue-100 shadow-inner">
             </div>
     </div>
 
-    <div class="max-w-md w-full bg-white rounded-[3rem] p-10 text-center shadow-2xl border-b-8 border-slate-200">
+    <div class="relative max-w-md w-full bg-white rounded-[3rem] p-10 text-center shadow-2xl border-b-8 border-slate-200">
         
-        <div id="phonogram-card" class="text-9xl font-black text-slate-900 mb-10 h-32 flex items-center justify-center">
-            ...
+        <div id="overlay"></div>
+
+        <div id="phonogram-card" class="text-9xl font-black text-slate-900 mb-10 h-48 flex items-center justify-center">
+            <span id="card-letters">...</span>
+            <div id="card-loader" class="loader"></div>
         </div>
 
         <button id="main-btn" class="w-full bg-purple-600 text-white py-6 rounded-3xl font-black text-2xl uppercase shadow-lg hover:brightness-110 active:scale-95 transition-all mb-4">
             Push to Speak
         </button>
         
-        <p id="status-msg" class="text-slate-400 font-bold uppercase text-xs tracking-widest">Loading Session...</p>
+        <p id="status-msg" class="text-slate-400 font-bold uppercase text-xs tracking-widest">Initialising...</p>
     </div>
 
     <audio id="teacher-audio"></audio>
 
     <script>
-        // FULL LIST OF 70 (Shortened for example)
         const allPhonograms = [
             { letters: 'sh' }, { letters: 'ch' }, { letters: 'th' }, { letters: 'ou' }, 
             { letters: 'ow' }, { letters: 'er' }, { letters: 'ir' }, { letters: 'ur' },
             { letters: 'ay' }, { letters: 'ai' }, { letters: 'oy' }, { letters: 'oi' }, { letters: 'a'},{ letters: 'wor'}, { letters: 'b'}, { letters: 'ear'}, { letters: 'c'}, { letters: 'ee'}, { letters: 'd'}, { letters: 'ph'}, { letters: 'e'}, { letters: 'wh'}, { letters: 'f'}, { letters: 'oo'}, { letters: 'g'}, { letters: 'oa'}, { letters: 'h'}, { letters: 'oe'}, { letters: 'i'}, { letters: 'ed'}, { letters: 'j'}, { letters: 'ea'}, { letters: 'k'}, { letters: 'ar'}, { letters: 'l'}, { letters: 'ck'}, { letters: 'm'}, { letters: 'wr'}, { letters: 'n'}, { letters: 'tch'}, { letters: 'o'}, { letters: 'dge'}, { letters: 'p'}, { letters: 'aw'}, { letters: 'qu'}, { letters: 'au'}, { letters: 'r'}, { letters: 'kn'}, { letters: 's'}, { letters: 'gn'}, { letters: 't'}, { letters: 'or'}, { letters: 'u'}, { letters: 'ng'}, { letters: 'v'}, { letters: 'ew'}, { letters: 'ui'}, { letters: 'w'}, { letters: 'ey'}, { letters: 'x'}, { letters: 'ie'}, { letters: 'igh'}, { letters: 'y'}, { letters: 'ei'}, { letters: 'z'}, { letters: 'eigh'}, { letters: 'ci'}, { letters: 'si'}, { letters: 'ti'}, { letters: 'ough'}  
-            // Add all 70 here...
         ];
 
         const stickers = ["⭐", "🎨", "🚀", "🦄", "🦖", "🍎", "🎈", "💎", "🦁", "🍦"];
         let currentSession = [];
         let currentIndex = 0;
         let mediaRecorder;
+        let audioChunks = [];
 
-        // 1. SHUFFLE AND PICK 15
+        // --- PASTE YOUR GOOGLE APPS SCRIPT URL HERE ---
+        const APPS_SCRIPT_URL = "YOUR_APPS_SCRIPT_URL"; 
+
         function startNewSession() {
             let shuffled = [...allPhonograms].sort(() => Math.random() - 0.5);
             currentSession = shuffled.slice(0, 15);
+            currentIndex = 0;
             updateDisplay();
         }
 
         function updateDisplay() {
             const current = currentSession[currentIndex];
-            document.getElementById('phonogram-card').innerText = current.letters;
+            document.getElementById('card-letters').innerText = current.letters;
+            document.getElementById('card-letters').style.display = 'block';
+            document.getElementById('card-loader').style.display = 'none';
+            document.getElementById('overlay').style.display = 'none';
             document.getElementById('counter').innerText = `${currentIndex + 1} / 15`;
+            document.getElementById('status-msg').innerText = "Ready for your sounds";
+        }
+
+        function showOverlay(type) {
+            const overlay = document.getElementById('overlay');
+            overlay.style.display = 'flex';
+            if (type === 'correct') {
+                overlay.innerText = "✅";
+                overlay.className = "bg-green-500/90 text-white";
+            } else {
+                overlay.innerText = "❌";
+                overlay.className = "bg-red-500/90 text-white";
+            }
+        }
+
+        function handleResult(isCorrect) {
+            const statusMsg = document.getElementById('status-msg');
+            
+            if (isCorrect) {
+                showOverlay('correct');
+                addSticker();
+                statusMsg.innerText = "Excellent!";
+                setTimeout(nextCard, 2000);
+            } else {
+                showOverlay('wrong');
+                statusMsg.innerText = "Listen to the teacher...";
+                const audio = document.getElementById('teacher-audio');
+                audio.src = `audio/${currentSession[currentIndex].letters}.mp3`;
+                audio.play();
+                setTimeout(nextCard, 4500);
+            }
         }
 
         function addSticker() {
             const tray = document.getElementById('sticker-tray');
             const randomSticker = stickers[Math.floor(Math.random() * stickers.length)];
             const span = document.createElement('span');
-            span.className = "text-3xl sticker";
+            span.className = "text-4xl sticker";
             span.innerText = randomSticker;
             tray.appendChild(span);
         }
 
-        function handleResult(isCorrect) {
-            if (isCorrect) {
-                addSticker();
-                document.getElementById('status-msg').innerText = "Awesome! +1 Sticker";
+        function nextCard() {
+            currentIndex++;
+            if (currentIndex < 15) {
+                updateDisplay();
+                const btn = document.getElementById('main-btn');
+                btn.innerText = "Push to Speak";
+                btn.className = "w-full bg-purple-600 text-white py-6 rounded-3xl font-black text-2xl uppercase shadow-lg mb-4";
             } else {
-                document.getElementById('status-msg').innerText = "Listen to the teacher...";
-                const audio = document.getElementById('teacher-audio');
-                audio.src = `audio/${currentSession[currentIndex].letters}.mp3`;
-                audio.play();
+                document.getElementById('phonogram-card').innerText = "🏆";
+                document.getElementById('status-msg').innerText = "Session Complete!";
+                document.getElementById('main-btn').classList.add('hidden');
             }
-
-            // Move to next after a delay
-            setTimeout(() => {
-                currentIndex++;
-                if (currentIndex < 15) {
-                    updateDisplay();
-                    document.getElementById('status-msg').innerText = "Ready for next sound";
-                } else {
-                    document.getElementById('phonogram-card').innerText = "🏆";
-                    document.getElementById('status-msg').innerText = "Session Complete!";
-                }
-            }, 3000);
         }
 
-        // Setup the recording (similar to your previous code)
-        // For now, simulated button click:
+        async function checkWithAI(audioBlob, phonogramLetters) {
+            // Show Loader
+            document.getElementById('card-letters').style.display = 'none';
+            document.getElementById('card-loader').style.display = 'block';
+
+            const reader = new FileReader();
+            reader.readAsDataURL(audioBlob);
+            reader.onloadend = async () => {
+                const base64Audio = reader.result.split(',')[1];
+                try {
+                    const response = await fetch(APPS_SCRIPT_URL, {
+                        method: "POST",
+                        body: JSON.stringify({
+                            phonogram: phonogramLetters,
+                            audio: base64Audio
+                        })
+                    });
+                    const result = await response.text();
+                    document.getElementById('card-loader').style.display = 'none';
+                    handleResult(result.trim() === "CORRECT");
+                } catch (error) {
+                    document.getElementById('status-msg').innerText = "Connection Error";
+                    document.getElementById('card-loader').style.display = 'none';
+                    document.getElementById('card-letters').style.display = 'block';
+                }
+            };
+        }
+
         const mainBtn = document.getElementById('main-btn');
-        mainBtn.addEventListener('click', () => {
-            // This is where the Gemini check will eventually go!
-            document.getElementById('status-msg').innerText = "Checking sound...";
-            setTimeout(() => handleResult(Math.random() > 0.4), 1000);
+        mainBtn.addEventListener('click', async () => {
+            if (!mediaRecorder || mediaRecorder.state === "inactive") {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (event) => audioChunks.push(event.data);
+                
+                mediaRecorder.onstop = () => {
+                    document.getElementById('status-msg').innerText = "Analyzing...";
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    checkWithAI(audioBlob, currentSession[currentIndex].letters);
+                };
+
+                mediaRecorder.start();
+                mainBtn.innerText = "Stop Recording";
+                mainBtn.classList.replace('bg-purple-600', 'bg-red-500');
+            } else {
+                mediaRecorder.stop();
+                mainBtn.innerText = "Processing...";
+                mainBtn.classList.replace('bg-red-500', 'bg-yellow-500');
+            }
         });
 
         startNewSession();
