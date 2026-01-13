@@ -3,262 +3,219 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Phonogram AI Lab</title>
+    <title>Phonogram Lab</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Teachers:wght@400;800&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Teachers', sans-serif; }
-        .loader {
-            width: 80px; height: 80px;
-            border: 8px solid #f3f3f3; border-top: 8px solid #9333ea;
-            border-radius: 50%; animation: spin 1s linear infinite; display: none;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .card-inner { transition: transform 0.6s; transform-style: preserve-3d; }
+        .flipped { transform: rotateY(180deg); }
         .sticker { animation: pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         @keyframes pop { 0% { transform: scale(0); } 100% { transform: scale(1); } }
-        #overlay {
-            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            border-radius: 3rem; z-index: 10; justify-content: center; align-items: center; font-size: 8rem;
-        }
     </style>
 </head>
-<body class="bg-blue-50 min-h-screen flex flex-col items-center p-6">
+<body class="bg-blue-50 min-h-screen flex flex-col items-center p-4">
 
-    <div class="w-full max-w-2xl mb-6">
-        <div class="flex justify-between items-end mb-2 px-4">
-            <h2 class="text-blue-900 font-black uppercase tracking-widest text-sm">Sticker Book</h2>
-            <div class="text-blue-400 font-bold" id="counter">0 / 15</div>
+    <div class="w-full max-w-md flex justify-between items-center mb-8">
+        <h1 class="text-2xl font-bold text-purple-800">Phonogram Lab</h1>
+        <div id="sticker-count" class="bg-white px-4 py-2 rounded-full shadow-sm font-bold text-purple-600">
+            ⭐ 0
         </div>
-        <div id="sticker-tray" class="bg-white rounded-2xl p-4 min-h-[85px] flex flex-wrap gap-2 border-4 border-blue-100 shadow-inner"></div>
     </div>
 
-    <div class="relative max-w-md w-full bg-white rounded-[3rem] p-10 text-center shadow-2xl border-b-8 border-slate-200">
-        <div id="overlay"></div>
+    <div class="relative w-80 h-96 perspective-1000">
+        <div id="card" class="w-full h-full bg-white rounded-3xl shadow-xl flex flex-col items-center justify-center p-8 text-center">
+            
+            <div id="visualizer-container" style="width: 100%; height: 50px; display: flex; align-items: center; justify-content: center; gap: 3px; margin-bottom: 20px;"></div>
 
-        <div id="phonogram-card" class="text-9xl font-black text-slate-900 mb-10 h-48 flex items-center justify-center">
-            <div id="card-content">
-                <span id="card-letters">...</span>
-                <div id="card-loader" class="loader"></div>
+            <div id="card-content" class="flex-grow flex items-center justify-center">
+                <h2 id="card-letters" class="text-8xl font-bold text-gray-800">...</h2>
+                <div id="card-loader" class="hidden">
+                    <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-purple-600"></div>
+                </div>
             </div>
-            <div id="final-results" class="hidden flex flex-col items-center">
-                <span class="text-6xl mb-2">🏆</span>
-                <div id="percent-score" class="text-6xl font-black text-purple-600">0%</div>
-                <p class="text-slate-400 text-sm font-bold uppercase tracking-widest mt-2">Accuracy Score</p>
-            </div>
+
+            <p id="status-msg" class="mt-4 text-gray-500 font-medium uppercase tracking-widest text-sm">Initialising...</p>
         </div>
-        <div id="visualizer-container" style="width: 100%; height: 50px; display: flex; align-items: center; justify-content: center; gap: 3px; margin-bottom: 10px;">
-        </div>
-        <button id="main-btn" class="w-full bg-purple-600 text-white py-6 rounded-3xl font-black text-2xl uppercase shadow-lg hover:brightness-110 active:scale-95 transition-all mb-4">
-            Push to Speak
-        </button>
-        
-        <button id="reset-btn" class="hidden w-full bg-blue-500 text-white py-6 rounded-3xl font-black text-2xl uppercase shadow-lg hover:brightness-110 active:scale-95 transition-all mb-4">
-            Practice 15 More
-        </button>
-        
-        <p id="status-msg" class="text-slate-400 font-bold uppercase text-xs tracking-widest">Initialising...</p>
     </div>
+
+    <div class="mt-12 flex flex-col items-center gap-4">
+        <button id="main-btn" class="bg-purple-600 hover:bg-purple-700 text-white text-xl font-bold py-6 px-12 rounded-2xl shadow-lg transform transition active:scale-95">
+            PUSH TO SPEAK
+        </button>
+    </div>
+
+    <div id="sticker-shelf" class="mt-12 flex flex-wrap justify-center gap-2 max-w-md"></div>
 
     <audio id="teacher-audio"></audio>
 
     <script>
-        const allPhonograms = [
-            { letters: 'sh' }, { letters: 'ch' }, { letters: 'th' }, { letters: 'ou' }, 
-            { letters: 'ow' }, { letters: 'er' }, { letters: 'ir' }, { letters: 'ur' },
-            { letters: 'ay' }, { letters: 'ai' }, { letters: 'oy' }, { letters: 'oi' }, { letters: 'a'},{ letters: 'wor'}, { letters: 'b'}, { letters: 'ear'}, { letters: 'c'}, { letters: 'ee'}, { letters: 'd'}, { letters: 'ph'}, { letters: 'e'}, { letters: 'wh'}, { letters: 'f'}, { letters: 'oo'}, { letters: 'g'}, { letters: 'oa'}, { letters: 'h'}, { letters: 'oe'}, { letters: 'i'}, { letters: 'ed'}, { letters: 'j'}, { letters: 'ea'}, { letters: 'k'}, { letters: 'ar'}, { letters: 'l'}, { letters: 'ck'}, { letters: 'm'}, { letters: 'wr'}, { letters: 'n'}, { letters: 'tch'}, { letters: 'o'}, { letters: 'dge'}, { letters: 'p'}, { letters: 'aw'}, { letters: 'qu'}, { letters: 'au'}, { letters: 'r'}, { letters: 'kn'}, { letters: 's'}, { letters: 'gn'}, { letters: 't'}, { letters: 'or'}, { letters: 'u'}, { letters: 'ng'}, { letters: 'v'}, { letters: 'ew'}, { letters: 'ui'}, { letters: 'w'}, { letters: 'ey'}, { letters: 'x'}, { letters: 'ie'}, { letters: 'igh'}, { letters: 'y'}, { letters: 'ei'}, { letters: 'z'}, { letters: 'eigh'}, { letters: 'ci'}, { letters: 'si'}, { letters: 'ti'}, { letters: 'ough'}  
+        // --- CONFIGURATION ---
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzltqSFeDTpEWTMab7VIK1NURtZ7QpEmsEhhjBh2nJWvGUblN_Gzddtc3bS3va8hCPB/exec"; // <--- PASTE YOUR /exec URL HERE
+        
+        const phonograms = [
+            { letters: "sh", sounds: ["sh"] },
+            { letters: "ch", sounds: ["ch", "k", "sh"] },
+            { letters: "ir", sounds: ["er"] },
+            { letters: "th", sounds: ["th", "th"] }
         ];
 
-        const stickers = ["🐶", "🐱", "🐭", "🐹", "🐰", "🦊", "🐻", "🐼", "🐻‍❄️", "🐨", "🐯", "🦁", "🐮", "🐷", "🐸", "🐵", "🐥", "🐧", "🦄", "🐝", "🦋", "🐌", "🐢", "🐙", "🐬", "🐳", "🍎", "🍐", "🍊", "🍋", "🍌", "🍉", "🍇", "🍓", "🫐", "🍒", "🍑", "🥭", "🍍", "🥥", "🥝", "🍅", "🍆", "🥑", "🥦", "🌽", "🥕", "🥨", "🧀", "🥚", "🍳", "🥞", "🧇", "🥓", "🍔", "🍟", "🍕", "🌭", "🌮", "🌯", "🍣", "🍦", "🍧", "🍨", "🍩", "🍪", "🎂", "🍰", "🧁", "🥧", "🍫", "🍬", "🍭", "🍮", "🍯", "🍿", "🥤", "🧃", "😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂", "🙂", "🙃", "😉", "😊", "😇", "🥰", "😍", "🤩", "😘", "😋", "😛", "😜", "🤪", "😝", "🤑", "🤗", "🤭", "🥳", "😎", "🤓", "🧐"];
-        
-        let currentSession = [];
         let currentIndex = 0;
-        let totalCorrect = 0;
+        let stickers = 0;
         let mediaRecorder;
         let audioChunks = [];
+        let audioContext, analyser, dataArray, animationId;
 
-        // --- PASTE YOUR GOOGLE APPS SCRIPT URL HERE ---
-        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzltqSFeDTpEWTMab7VIK1NURtZ7QpEmsEhhjBh2nJWvGUblN_Gzddtc3bS3va8hCPB/exec"; 
+        const mainBtn = document.getElementById('main-btn');
+        const statusMsg = document.getElementById('status-msg');
+        const cardLetters = document.getElementById('card-letters');
+        const cardLoader = document.getElementById('card-loader');
 
-        function startNewSession() {
-            let shuffled = [...allPhonograms].sort(() => Math.random() - 0.5);
-            currentSession = shuffled.slice(0, 15);
-            currentIndex = 0;
-            totalCorrect = 0;
-            
-            document.getElementById('final-results').classList.add('hidden');
-            document.getElementById('card-content').classList.remove('hidden');
-            document.getElementById('main-btn').classList.remove('hidden');
-            document.getElementById('reset-btn').classList.add('hidden');
-            document.getElementById('sticker-tray').innerHTML = ""; 
-            
-            updateDisplay();
+        // Start Up
+        window.onload = () => {
+            updateCard();
+            statusMsg.innerText = "Ready for your sounds";
+        };
+
+        function updateCard() {
+            cardLetters.innerText = phonograms[currentIndex].letters;
+            cardLetters.style.display = 'block';
+            cardLoader.style.display = 'none';
         }
 
-        function updateDisplay() {
-            const current = currentSession[currentIndex];
-            document.getElementById('card-letters').innerText = current.letters;
-            document.getElementById('card-letters').style.display = 'block';
-            document.getElementById('card-loader').style.display = 'none';
-            document.getElementById('overlay').style.display = 'none';
-            document.getElementById('counter').innerText = `${currentIndex + 1} / 15`;
-            document.getElementById('status-msg').innerText = "Ready for your sounds";
-        }
+        mainBtn.addEventListener('click', async () => {
+            if (!mediaRecorder || mediaRecorder.state === "inactive") {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    
+                    // Start Visualizer
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    const source = audioContext.createMediaStreamSource(stream);
+                    analyser = audioContext.createAnalyser();
+                    analyser.fftSize = 32;
+                    source.connect(analyser);
+                    
+                    const bufferLength = analyser.frequencyBinCount;
+                    dataArray = new Uint8Array(bufferLength);
+                    
+                    const container = document.getElementById('visualizer-container');
+                    container.innerHTML = ''; 
+                    for (let i = 0; i < bufferLength; i++) {
+                        const bar = document.createElement('div');
+                        bar.style.width = '8px';
+                        bar.style.backgroundColor = '#9333ea';
+                        bar.style.borderRadius = '4px';
+                        container.appendChild(bar);
+                    }
 
-        function showOverlay(type) {
-            const overlay = document.getElementById('overlay');
-            overlay.style.display = 'flex';
-            overlay.className = type === 'correct' ? "bg-green-500/90 text-white" : "bg-red-500/90 text-white";
-            overlay.innerText = type === 'correct' ? "✅" : "❌";
-        }
+                    function draw() {
+                        animationId = requestAnimationFrame(draw);
+                        analyser.getByteFrequencyData(dataArray);
+                        const bars = container.querySelectorAll('div');
+                        dataArray.forEach((value, i) => {
+                            const height = (value / 255) * 50;
+                            if(bars[i]) bars[i].style.height = `${Math.max(4, height)}px`;
+                        });
+                    }
+                    draw();
 
-        function handleResult(isCorrect) {
-            const statusMsg = document.getElementById('status-msg');
-            if (isCorrect) {
-                totalCorrect++;
-                showOverlay('correct');
-                addSticker();
-                statusMsg.innerText = "Excellent!";
-                setTimeout(nextCard, 1500);
+                    // Start Recording
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+                    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                    mediaRecorder.onstop = async () => {
+                        cancelAnimationFrame(animationId);
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        if (audioBlob.size < 2000) {
+                            statusMsg.innerText = "Too quiet! Try again.";
+                            return;
+                        }
+                        processAudio(audioBlob);
+                    };
+
+                    mediaRecorder.start();
+                    mainBtn.innerText = "STOP";
+                    mainBtn.classList.replace('bg-purple-600', 'bg-red-500');
+                    statusMsg.innerText = "Listening...";
+                } catch (err) {
+                    statusMsg.innerText = "Mic access denied";
+                }
             } else {
-                showOverlay('wrong');
-                statusMsg.innerText = "Listen to the teacher...";
-                const audio = document.getElementById('teacher-audio');
-                audio.src = `audio/${currentSession[currentIndex].letters}.mp3`;
-                audio.play();
-                setTimeout(nextCard, 4000);
+                mediaRecorder.stop();
+                mainBtn.innerText = "PROCESSING...";
+                mainBtn.classList.replace('bg-red-500', 'bg-yellow-500');
             }
+        });
+
+        async function processAudio(blob) {
+            cardLetters.style.display = 'none';
+            cardLoader.style.display = 'block';
+
+            const reader = new FileReader();
+            reader.readAsDataURL(blob);
+            reader.onloadend = async () => {
+                const base64Audio = reader.result.split(',')[1];
+                try {
+                    const response = await fetch(APPS_SCRIPT_URL, {
+                        method: "POST",
+                        body: JSON.stringify({
+                            phonogram: phonograms[currentIndex].letters,
+                            audio: base64Audio
+                        }),
+                        redirect: "follow"
+                    });
+                    const result = await response.text();
+                    handleVerdict(result.trim().toUpperCase() === "CORRECT");
+                } catch (e) {
+                    statusMsg.innerText = "Connection Error";
+                    updateCard();
+                }
+            };
+        }
+
+        function handleVerdict(isCorrect) {
+            if (isCorrect) {
+                statusMsg.innerText = "CORRECT!";
+                playDing();
+                addSticker();
+                setTimeout(() => {
+                    currentIndex = (currentIndex + 1) % phonograms.length;
+                    updateCard();
+                    statusMsg.innerText = "Ready!";
+                    mainBtn.innerText = "PUSH TO SPEAK";
+                    mainBtn.classList.remove('bg-yellow-500');
+                    mainBtn.classList.add('bg-purple-600');
+                }, 2000);
+            } else {
+                statusMsg.innerText = "Try again!";
+                const audio = document.getElementById('teacher-audio');
+                audio.src = `audio/${phonograms[currentIndex].letters}.mp3`;
+                audio.play().catch(() => console.log("Missing teacher file"));
+                setTimeout(() => {
+                    updateCard();
+                    mainBtn.innerText = "PUSH TO SPEAK";
+                    mainBtn.classList.remove('bg-yellow-500');
+                    mainBtn.classList.add('bg-purple-600');
+                }, 3000);
+            }
+        }
+
+        function playDing() {
+            const ctx = new AudioContext();
+            const osc = ctx.createOscillator();
+            const g = ctx.createGain();
+            osc.connect(g); g.connect(ctx.destination);
+            osc.frequency.value = 880;
+            g.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + 0.5);
+            osc.start(); osc.stop(ctx.currentTime + 0.5);
         }
 
         function addSticker() {
-            const tray = document.getElementById('sticker-tray');
-            const randomSticker = stickers[Math.floor(Math.random() * stickers.length)];
-            const span = document.createElement('span');
-            span.className = "text-4xl sticker";
-            span.innerText = randomSticker;
-            tray.appendChild(span);
+            stickers++;
+            document.getElementById('sticker-count').innerText = `⭐ ${stickers}`;
+            const s = document.createElement('div');
+            s.className = "text-3xl sticker";
+            s.innerText = "🍦"; // You can randomize these!
+            document.getElementById('sticker-shelf').appendChild(s);
         }
-
-        function nextCard() {
-            currentIndex++;
-            if (currentIndex < 15) {
-                updateDisplay();
-                const btn = document.getElementById('main-btn');
-                btn.innerText = "Push to Speak";
-                btn.className = "w-full bg-purple-600 text-white py-6 rounded-3xl font-black text-2xl uppercase shadow-lg mb-4";
-            } else {
-                document.getElementById('card-content').classList.add('hidden');
-                document.getElementById('final-results').classList.remove('hidden');
-                const percent = Math.round((totalCorrect / 15) * 100);
-                document.getElementById('percent-score').innerText = percent + "%";
-                document.getElementById('status-msg').innerText = "Session Complete!";
-                document.getElementById('main-btn').classList.add('hidden');
-                document.getElementById('reset-btn').classList.remove('hidden');
-            }
-        }
-
-        async function checkWithAI(audioBlob, phonogramLetters) {
-    document.getElementById('card-letters').style.display = 'none';
-    document.getElementById('card-loader').style.display = 'block';
-
-    // Helper to convert Blob to Base64
-    const blobToBase64 = blob => new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(',')[1]);
-        reader.onerror = error => reject(error);
-        reader.readAsDataURL(blob);
-    });
-
-    try {
-        const base64Audio = await blobToBase64(audioBlob);
-        
-        const response = await fetch(APPS_SCRIPT_URL, {
-            method: "POST",
-            body: JSON.stringify({
-                phonogram: phonogramLetters,
-                audio: base64Audio
-            }),
-            redirect: "follow"
-        });
-
-        const result = await response.text();
-        document.getElementById('card-loader').style.display = 'none';
-        
-        // Final Safety: If Gemini returns an error or empty, mark INCORRECT
-        if (result.includes("ERROR") || result === "") {
-            handleResult(false);
-        } else {
-            handleResult(result.trim().toUpperCase() === "CORRECT");
-        }
-
-    } catch (error) {
-        console.error("Upload Error:", error);
-        document.getElementById('status-msg').innerText = "Connection Error";
-        document.getElementById('card-loader').style.display = 'none';
-        document.getElementById('card-letters').style.display = 'block';
-    }
-}
-
-        const mainBtn = document.getElementById('main-btn');
-        let audioContext, analyser, dataArray, animationId;
-
-mainBtn.addEventListener('click', async () => {
-    if (!mediaRecorder || mediaRecorder.state === "inactive") {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        
-        // --- VISUALIZER START ---
-        audioContext = new AudioContext();
-        const source = audioContext.createMediaStreamSource(stream);
-        analyser = audioContext.createAnalyser();
-        analyser.fftSize = 32; // Small number = thick bars
-        source.connect(analyser);
-        
-        const bufferLength = analyser.frequencyBinCount;
-        dataArray = new Uint8Array(bufferLength);
-        
-        const container = document.getElementById('visualizer-container');
-        container.innerHTML = ''; // Clear old bars
-        for (let i = 0; i < bufferLength; i++) {
-            const bar = document.createElement('div');
-            bar.style.width = '8px';
-            bar.style.backgroundColor = '#9333ea';
-            bar.style.borderRadius = '4px';
-            container.appendChild(bar);
-        }
-
-        function draw() {
-            animationId = requestAnimationFrame(draw);
-            analyser.getByteFrequencyData(dataArray);
-            const bars = container.querySelectorAll('div');
-            dataArray.forEach((value, i) => {
-                const height = (value / 255) * 50; // Scale to container height
-                bars[i].style.height = `${Math.max(4, height)}px`;
-            });
-        }
-        draw();
-        // --- VISUALIZER END ---
-
-        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
-        audioChunks = [];
-        mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-        mediaRecorder.onstop = () => {
-            cancelAnimationFrame(animationId); // Stop the dancing bars
-            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-            checkWithAI(audioBlob, currentSession[currentIndex].letters);
-        };
-
-        mediaRecorder.start();
-        mainBtn.innerText = "Stop Recording";
-    } else {
-        mediaRecorder.stop();
-    }
-});
-
-    document.getElementById('status-msg').innerText = "Analyzing...";
-    checkWithAI(audioBlob, currentSession[currentIndex].letters);
-
-
-        document.getElementById('reset-btn').addEventListener('click', startNewSession);
-        startNewSession();
     </script>
 </body>
 </html>
