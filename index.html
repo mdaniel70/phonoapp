@@ -111,11 +111,20 @@ mainBtn.addEventListener('click', async () => {
 
             // CREATE BARS
             const container = document.getElementById('visualizer-container');
-            container.innerHTML = '';
-            for (let i = 0; i < 20; i++) {
+            container.innerHTML = ''; // Clear old bars
+            container.style.display = 'flex'; // Ensure it's not hidden
+            
+            const barElements = [];
+            for (let i = 0; i < 16; i++) {
                 const bar = document.createElement('div');
-                bar.style.cssText = "width:6px; height:4px; background:#9333ea; border-radius:3px; transition: height 0.05s ease;";
+                // Use absolute styling to ensure they show up
+                bar.style.width = '10px';
+                bar.style.height = '4px';
+                bar.style.backgroundColor = '#9333ea';
+                bar.style.borderRadius = '5px';
+                bar.style.margin = '0 2px';
                 container.appendChild(bar);
+                barElements.push(bar);
             }
 
             // RECORDER
@@ -131,16 +140,17 @@ mainBtn.addEventListener('click', async () => {
             mediaRecorder.start();
 
             // ANIMATION LOOP
-            function animate() {
+           function animate() {
                 if (mediaRecorder && mediaRecorder.state === "recording") {
                     analyser.getByteFrequencyData(dataArray);
-                    const bars = container.querySelectorAll('div');
-                    bars.forEach((bar, i) => {
-                        const val = dataArray[i];
-                        const h = (val / 255) * 60;
-                        bar.style.height = Math.max(4, h) + "px";
-                    });
-                    requestAnimationFrame(animate);
+                    
+                    for (let i = 0; i < barElements.length; i++) {
+                        // We use index i*2 to skip some frequencies for a better "look"
+                        const val = dataArray[i * 2] || 0; 
+                        const h = (val / 255) * 60; 
+                        barElements[i].style.height = Math.max(4, h) + "px";
+                    }
+                    animationId = requestAnimationFrame(animate);
                 }
             }
             animate();
