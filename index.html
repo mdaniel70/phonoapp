@@ -194,31 +194,33 @@
         };
 
         try {
+            // THE FIX: We send as text/plain to avoid the "Pre-flight" security check
             const response = await fetch(APPS_SCRIPT_URL, {
                 method: "POST",
-                // Using text/plain is a 'trick' to avoid CORS pre-flight errors
-                headers: { "Content-Type": "text/plain" }, 
-                body: JSON.stringify(payload)
+                body: JSON.stringify(payload),
+                headers: {
+                    "Content-Type": "text/plain;charset=utf-8"
+                }
             });
 
-            if (!response.ok) throw new Error('Network response was not ok');
-
             const rawResult = await response.text();
-            console.log("AI Response:", rawResult);
-            
-            // Try to parse the result as JSON
-            const json = JSON.parse(rawResult);
-            const aiText = json.candidates[0].content.parts[0].text;
-            
-            // Logic for grading
-            const isCorrect = aiText.toUpperCase().includes("CORRECT");
+            console.log("Raw Response:", rawResult);
 
-            document.getElementById('debug-log').innerText = "AI THOUGHT: " + aiText;
-            handleVerdict(isCorrect);
+            const json = JSON.parse(rawResult);
+            
+            // Extract the text from the Gemini JSON structure
+            if (json.candidates && json.candidates[0].content.parts[0].text) {
+                const aiText = json.candidates[0].content.parts[0].text;
+                const isCorrect = aiText.toUpperCase().includes("CORRECT");
+                document.getElementById('debug-log').innerText = "AI THOUGHT: " + aiText;
+                handleVerdict(isCorrect);
+            } else {
+                throw new Error("Invalid AI Response Format");
+            }
 
         } catch (e) {
-            console.error("Detailed Error:", e);
-            statusMsg.innerText = "Connection Error - Please check console (F12)";
+            console.error("Connection Detailed Error:", e);
+            statusMsg.innerText = "Connection Error. Check Console (F12).";
             cardLoader.style.display = 'none';
             cardLetters.style.display = 'block';
             resetButton();
