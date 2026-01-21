@@ -32,7 +32,7 @@
                 </div>
             </div>
 
-            <p id="status-msg" class="mt-4 text-gray-500 font-medium uppercase tracking-widest text-sm">Initialising...</p>
+            <p id="status-msg" class="mt-4 text-gray-500 font-medium uppercase tracking-widest text-sm text-center px-4">Initialising...</p>
         </div>
     </div>
 
@@ -42,7 +42,7 @@
         </button>
     </div>
 
-    <div id="debug-log" style="display: block;"></div>
+    <div id="debug-log" class="mt-8 p-4 bg-gray-800 text-green-400 font-mono text-xs rounded-lg w-full max-w-md overflow-hidden min-h-[50px]">
         DEBUG: Waiting for first recording...
     </div>
 
@@ -51,254 +51,212 @@
     <audio id="teacher-audio"></audio>
 
     <script>
-      const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz5TpQcZ_T1rPMaVmXhDyf6FxkLKIC7m1D_El3g_8ym-fMbVCF2M44WvVhFhU6ZoIP0/exec"; 
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz5TpQcZ_T1rPMaVmXhDyf6FxkLKIC7m1D_El3g_8ym-fMbVCF2M44WvVhFhU6ZoIP0/exec"; 
 
-const phonograms = [
-    { letters: "sh", type: "sound", target: "/sh/" },
-    { letters: "qu", type: "rule", target: "kw and the rule: Always write a q with a u" },
-    { letters: "ti", type: "rule", target: "/sh/ and the rule: tall /sh/ must be followed by a vowel" },
-    { letters: "ir", type: "sound", target: "/er/ for first" }
-];
+        const phonograms = [
+            { letters: "sh", type: "sound", target: "/sh/" },
+            { letters: "qu", type: "rule", target: "kw and the rule: Always write a q with a u" },
+            { letters: "ti", type: "rule", target: "/sh/ and the rule: tall /sh/ must be followed by a vowel" },
+            { letters: "ir", type: "sound", target: "/er/ for first" }
+        ];
 
-let currentIndex = 0;
-let stickers = 0;
-let attempts = 0;
-let mediaRecorder = null;
-let audioChunks = [];
-let isCoolingDown = false; 
+        let currentIndex = 0;
+        let stickers = 0;
+        let attempts = 0;
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let isCoolingDown = false; 
+        let animationId;
 
-// Visualizer Globals
-let audioContext = null;
-let analyser = null;
-let dataArray = null;
-let source = null;
+        // Visualizer Globals
+        let audioContext = null;
+        let analyser = null;
+        let dataArray = null;
+        let source = null;
 
-const mainBtn = document.getElementById('main-btn');
-const statusMsg = document.getElementById('status-msg');
-const cardLetters = document.getElementById('card-letters');
-const cardLoader = document.getElementById('card-loader');
+        const mainBtn = document.getElementById('main-btn');
+        const statusMsg = document.getElementById('status-msg');
+        const cardLetters = document.getElementById('card-letters');
+        const cardLoader = document.getElementById('card-loader');
 
-window.addEventListener('load', () => { updateCard(); });
+        window.addEventListener('load', () => { updateCard(); });
 
-function updateCard() {
-    const current = phonograms[currentIndex];
-    cardLetters.innerText = current.letters;
-    
-    // Show a small hint so the student knows if they need to say a rule
-    const msg = current.type === "rule" ? "Say the sound and the rule!" : "Say the sound!";
-    statusMsg.innerText = msg;
-    statusMsg.classList.remove('text-green-600', 'text-red-500');
-}
-
-mainBtn.addEventListener('click', async () => {
-    if (isCoolingDown) return;
-
-    if (!mediaRecorder || mediaRecorder.state === "inactive") {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-    audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true
-    } 
-});
-
-const options = { 
-    mimeType: 'audio/webm;codecs=opus',
-    audioBitsPerSecond: 128000 // Higher quality audio
-};
-mediaRecorder = new MediaRecorder(stream, options);
+        function updateCard() {
+            const current = phonograms[currentIndex];
+            cardLetters.innerText = current.letters;
+            cardLetters.style.display = 'block';
+            cardLoader.style.display = 'none';
             
-            // WAKE UP AUDIO HARDWARE
-            if (!audioContext) {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            }
-            if (audioContext.state === 'suspended') {
-                await audioContext.resume();
-            }
+            const msg = current.type === "rule" ? "Say the sound and the rule!" : "Say the sound!";
+            statusMsg.innerText = msg;
+            statusMsg.className = "mt-4 text-gray-500 font-medium uppercase tracking-widest text-sm text-center px-4";
+        }
 
-            // SETUP ANALYSER
-            analyser = audioContext.createAnalyser();
-            analyser.fftSize = 64; 
-            source = audioContext.createMediaStreamSource(stream);
-            source.connect(analyser);
+        mainBtn.addEventListener('click', async () => {
+            if (isCoolingDown) return;
 
-            dataArray = new Uint8Array(analyser.frequencyBinCount);
+            if (!mediaRecorder || mediaRecorder.state === "inactive") {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ 
+                        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } 
+                    });
 
-            // CREATE BARS
-            const container = document.getElementById('visualizer-container');
-            container.innerHTML = ''; // Clear old bars
-            container.style.display = 'flex'; // Ensure it's not hidden
-            
-            const barElements = [];
-            for (let i = 0; i < 16; i++) {
-                const bar = document.createElement('div');
-                // Use absolute styling to ensure they show up
-                bar.style.width = '10px';
-                bar.style.height = '4px';
-                bar.style.backgroundColor = '#9333ea';
-                bar.style.borderRadius = '5px';
-                bar.style.margin = '0 2px';
-                container.appendChild(bar);
-                barElements.push(bar);
-            }
-
-            // RECORDER
-          mediaRecorder.onstop = () => {
-    cancelAnimationFrame(animationId);
-    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-    
-    // Check if the recording is actually long enough (under 1KB is usually silence)
-    if (audioBlob.size < 2000) { 
-        statusMsg.innerText = "Too short! Speak a bit louder.";
-        resetButton();
-        return;
-    }
-    
-    processAudio(audioBlob);
-};
-
-            mediaRecorder.start();
-
-            // ANIMATION LOOP
-           function animate() {
-                if (mediaRecorder && mediaRecorder.state === "recording") {
-                    analyser.getByteFrequencyData(dataArray);
+                    const options = { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 128000 };
+                    mediaRecorder = new MediaRecorder(stream, options);
                     
-                    for (let i = 0; i < barElements.length; i++) {
-                        // We use index i*2 to skip some frequencies for a better "look"
-                        const val = dataArray[i * 2] || 0; 
-                        const h = (val / 255) * 60; 
-                        barElements[i].style.height = Math.max(4, h) + "px";
+                    if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    if (audioContext.state === 'suspended') await audioContext.resume();
+
+                    analyser = audioContext.createAnalyser();
+                    analyser.fftSize = 64; 
+                    source = audioContext.createMediaStreamSource(stream);
+                    source.connect(analyser);
+                    dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+                    const container = document.getElementById('visualizer-container');
+                    container.innerHTML = '';
+                    const barElements = [];
+                    for (let i = 0; i < 16; i++) {
+                        const bar = document.createElement('div');
+                        bar.style.width = '10px'; bar.style.height = '4px'; bar.style.backgroundColor = '#9333ea';
+                        bar.style.borderRadius = '5px'; bar.style.margin = '0 2px';
+                        container.appendChild(bar);
+                        barElements.push(bar);
                     }
-                    animationId = requestAnimationFrame(animate);
+
+                    audioChunks = [];
+                    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                    mediaRecorder.onstop = () => {
+                        cancelAnimationFrame(animationId);
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        if (audioBlob.size < 2000) { 
+                            statusMsg.innerText = "Too short! Speak louder.";
+                            resetButton();
+                            return;
+                        }
+                        processAudio(audioBlob);
+                    };
+
+                    mediaRecorder.start();
+
+                    function animate() {
+                        if (mediaRecorder && mediaRecorder.state === "recording") {
+                            analyser.getByteFrequencyData(dataArray);
+                            for (let i = 0; i < barElements.length; i++) {
+                                const val = dataArray[i * 2] || 0; 
+                                const h = (val / 255) * 60; 
+                                barElements[i].style.height = Math.max(4, h) + "px";
+                            }
+                            animationId = requestAnimationFrame(animate);
+                        }
+                    }
+                    animate();
+
+                    mainBtn.innerText = "STOP";
+                    mainBtn.classList.replace('bg-purple-600', 'bg-red-500');
+                    statusMsg.innerText = "Listening...";
+
+                } catch (err) {
+                    statusMsg.innerText = "Check mic permissions!";
+                }
+            } else {
+                mediaRecorder.stop();
+                isCoolingDown = true;
+                mainBtn.innerText = "PROCESSING...";
+                mainBtn.classList.replace('bg-red-500', 'bg-gray-400');
+            }
+        });
+
+        async function processAudio(blob) {
+            cardLetters.style.display = 'none';
+            cardLoader.style.display = 'block';
+            const reader = new FileReader();
+            reader.readAsDataURL(blob);
+            reader.onloadend = async () => {
+                const base64Audio = reader.result.split(',')[1];
+                try {
+                    const currentPhono = phonograms[currentIndex];
+                    const response = await fetch(APPS_SCRIPT_URL, {
+                        method: "POST",
+                        body: JSON.stringify({ 
+                            phonogram: currentPhono.letters, 
+                            type: currentPhono.type, 
+                            target: currentPhono.target,
+                            audio: base64Audio 
+                        }),
+                        redirect: "follow"
+                    });
+                    
+                    const rawResult = await response.text();
+                    const json = JSON.parse(rawResult);
+                    const aiText = json.candidates[0].content.parts[0].text;
+                    const isCorrect = aiText.toUpperCase().includes("CORRECT");
+
+                    document.getElementById('debug-log').innerText = "AI THOUGHT: " + aiText;
+                    handleVerdict(isCorrect);
+                } catch (e) {
+                    statusMsg.innerText = "Connection Error";
+                    resetButton();
+                }
+            };
+        }
+
+        function handleVerdict(isCorrect) {
+            cardLoader.style.display = 'none';
+            if (isCorrect) {
+                statusMsg.innerText = "YES! YOU ARE CORRECT!";
+                statusMsg.className = "mt-4 text-green-600 font-bold uppercase tracking-widest text-sm text-center px-4";
+                playDing();
+                addSticker();
+                setTimeout(moveToNextCard, 2000);
+            } else {
+                attempts++;
+                statusMsg.className = "mt-4 text-red-500 font-bold uppercase tracking-widest text-sm text-center px-4";
+                if (attempts >= 2) {
+                    statusMsg.innerText = "Let's go to the next one.";
+                    attempts = 0; 
+                    setTimeout(moveToNextCard, 4000);
+                } else {
+                    statusMsg.innerText = "Try one more time!";
+                    setTimeout(() => {
+                        updateCard();
+                        resetButton();
+                    }, 3000);
                 }
             }
-            animate();
-
-            mainBtn.innerText = "STOP";
-            mainBtn.classList.replace('bg-purple-600', 'bg-red-500');
-            statusMsg.innerText = "Listening...";
-
-        } catch (err) {
-            console.error("Mic Error:", err);
-            statusMsg.innerText = "Check mic permissions!";
         }
-    } else {
-        mediaRecorder.stop();
-        isCoolingDown = true;
-        mainBtn.innerText = "PROCESSING...";
-        mainBtn.classList.replace('bg-red-500', 'bg-gray-400');
-    }
-});
 
-async function processAudio(blob) {
-    cardLetters.style.display = 'none';
-    cardLoader.style.display = 'block';
-    
-    const reader = new FileReader();
-    reader.readAsDataURL(blob);
-    reader.onloadend = async () => {
-        const base64Audio = reader.result.split(',')[1];
-        try {
-            
-           const currentPhono = phonograms[currentIndex];
-
-          const response = await fetch(APPS_SCRIPT_URL, {
-          method: "POST",
-          body: JSON.stringify({ 
-          phonogram: currentPhono.letters, 
-          type: currentPhono.type, 
-          target: currentPhono.target,
-          audio: base64Audio 
-    }),
-    redirect: "follow"
-});
-            
-            const rawResult = await response.text();
-console.log("Raw AI Data:", rawResult);
-
-// This logic pulls out the reasoning from the Gemini JSON
-const json = JSON.parse(rawResult);
-const aiText = json.candidates[0].content.parts[0].text;
-const isCorrect = aiText.toUpperCase().includes("CORRECT");
-
-// Show the student the AI's "Reason" in the debug log
-document.getElementById('debug-log').innerText = "AI THOUGHT: " + aiText;
-
-handleVerdict(isCorrect);
-        } catch (e) {
-            console.error("Fetch Error:", e);
-            statusMsg.innerText = "Connection Error";
+        function moveToNextCard() {
+            currentIndex = (currentIndex + 1) % phonograms.length;
+            updateCard();
             resetButton();
         }
-    };
-}
 
-function handleVerdict(isCorrect) {
-    // Hide the loader and show the status
-    cardLoader.style.display = 'none';
-    
-    if (isCorrect) {
-        statusMsg.innerText = "YES! YOU ARE CORRECT!";
-        statusMsg.classList.add('text-green-600');
-        playDing();
-        addSticker();
-        setTimeout(moveToNextCard, 2000);
-    } else {
-        attempts++;
-        statusMsg.classList.add('text-red-500');
-        
-        if (attempts >= 2) {
-            statusMsg.innerText = "Let's go to the next one.";
-            playTeacherAudio();
-            attempts = 0; 
-            setTimeout(moveToNextCard, 4000);
-        } else {
-            statusMsg.innerText = "Try one more time!";
-            playTeacherAudio();
-            setTimeout(() => {
-                statusMsg.classList.remove('text-red-500');
-                updateCard();
-                resetButton();
-            }, 3000);
+        function resetButton() {
+            isCoolingDown = false;
+            mainBtn.innerText = "PUSH TO SPEAK";
+            mainBtn.classList.remove('bg-gray-400', 'bg-red-500');
+            mainBtn.classList.add('bg-purple-600');
         }
-    }
-}
 
-function moveToNextCard() {
-    currentIndex = (currentIndex + 1) % phonograms.length;
-    updateCard();
-    resetButton();
-}
+        function playDing() {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const g = ctx.createGain();
+            osc.connect(g); g.connect(ctx.destination);
+            osc.frequency.value = 880;
+            g.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + 0.5);
+            osc.start(); osc.stop(ctx.currentTime + 0.5);
+        }
 
-function resetButton() {
-    setTimeout(() => {
-        isCoolingDown = false;
-        mainBtn.innerText = "PUSH TO SPEAK";
-        mainBtn.classList.remove('bg-gray-400', 'bg-red-500');
-        mainBtn.classList.add('bg-purple-600');
-    }, 1000);
-}
-
-function playDing() {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const g = ctx.createGain();
-    osc.connect(g); g.connect(ctx.destination);
-    osc.frequency.value = 880;
-    g.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + 0.5);
-    osc.start(); osc.stop(ctx.currentTime + 0.5);
-}
-
-function addSticker() {
-    stickers++;
-    document.getElementById('sticker-count').innerText = `⭐ ${stickers}`;
-    const s = document.createElement('div');
-    s.className = "text-3xl sticker";
-    s.innerText = "🍦"; 
-    document.getElementById('sticker-shelf').appendChild(s);
-}
-        </script>
+        function addSticker() {
+            stickers++;
+            document.getElementById('sticker-count').innerText = `⭐ ${stickers}`;
+            const s = document.createElement('div');
+            s.className = "text-3xl sticker";
+            s.innerText = "🍦"; 
+            document.getElementById('sticker-shelf').appendChild(s);
+        }
+    </script>
 </body>
 </html>
