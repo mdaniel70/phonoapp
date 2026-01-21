@@ -51,96 +51,77 @@
     <audio id="teacher-audio"></audio>
 
     <script>
-       // --- CONFIGURATION ---
-        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIHmdCPb5DcAOLA72wGRr2ytOHB2MOs1Y2divX-Z-pHZfwGerVPUEk81SsK6Qnj-1p/exec"; 
-        
-        const phonograms = [
-            { letters: "sh", sounds: ["sh"] },
-            { letters: "ch", sounds: ["ch", "k", "sh"] },
-            { letters: "ir", sounds: ["er"] },
-            { letters: "th", sounds: ["th"] }
-        ];
+      const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxyi9-gW9Qpjx7beTjc61WHUn3tzGRZzg9kPemyoKe8hRZsmPxdc4siaA4BlQ2OvPS6/exec"; 
 
-        let currentIndex = 0;
-        let stickers = 0;
-        let attempts = 0;
-        let mediaRecorder = null;
-        let audioChunks = [];
-        let audioContext, analyser, dataArray, animationId;
-        let isCoolingDown = false; 
-        
-        const mainBtn = document.getElementById('main-btn');
-        const statusMsg = document.getElementById('status-msg');
-        const cardLetters = document.getElementById('card-letters');
-        const cardLoader = document.getElementById('card-loader');
+const phonograms = [
+    { letters: "sh", sounds: ["sh"] },
+    { letters: "ch", sounds: ["ch", "k", "sh"] },
+    { letters: "ir", sounds: ["er"] },
+    { letters: "th", sounds: ["th"] }
+];
 
-        // Initial Load - This puts the first letters on the card
-        window.addEventListener('load', () => {
-            console.log("Page loaded. Initializing card...");
-            updateCard();
-            statusMsg.innerText = "Ready for your sounds";
-        });
+let currentIndex = 0;
+let stickers = 0;
+let attempts = 0;
+let mediaRecorder = null;
+let audioChunks = [];
+let isCoolingDown = false; 
 
-        function updateCard() {
-            if (phonograms[currentIndex]) {
-                cardLetters.innerText = phonograms[currentIndex].letters;
-                cardLetters.style.display = 'block';
-                cardLoader.style.display = 'none';
-                console.log("Card updated to:", phonograms[currentIndex].letters);
-            } else {
-                console.error("Error: Phonogram at index " + currentIndex + " not found.");
-            }
-        }
+// Visualizer Globals
+let audioContext = null;
+let analyser = null;
+let dataArray = null;
+let source = null;
 
-    mainBtn.addEventListener('click', async () => {
+const mainBtn = document.getElementById('main-btn');
+const statusMsg = document.getElementById('status-msg');
+const cardLetters = document.getElementById('card-letters');
+const cardLoader = document.getElementById('card-loader');
+
+window.addEventListener('load', () => { updateCard(); });
+
+function updateCard() {
+    cardLetters.innerText = phonograms[currentIndex].letters;
+    cardLetters.style.display = 'block';
+    cardLoader.style.display = 'none';
+}
+
+mainBtn.addEventListener('click', async () => {
     if (isCoolingDown) return;
 
     if (!mediaRecorder || mediaRecorder.state === "inactive") {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             
-            // Create Context if it doesn't exist
+            // WAKE UP AUDIO HARDWARE
             if (!audioContext) {
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
             }
-            // Resume Context immediately on user click
-            await audioContext.resume();
+            if (audioContext.state === 'suspended') {
+                await audioContext.resume();
+            }
 
-            const options = { mimeType: 'audio/webm;codecs=opus' };
-            mediaRecorder = new MediaRecorder(stream, options);
-
-            // Visualizer setup
-            const source = audioContext.createMediaStreamSource(stream);
+            // SETUP ANALYSER
             analyser = audioContext.createAnalyser();
+            analyser.fftSize = 64; 
+            source = audioContext.createMediaStreamSource(stream);
             source.connect(analyser);
-            
+
             dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+            // CREATE BARS
             const container = document.getElementById('visualizer-container');
-            container.innerHTML = ''; 
-            for (let i = 0; i < 16; i++) { // 16 bars
+            container.innerHTML = '';
+            for (let i = 0; i < 20; i++) {
                 const bar = document.createElement('div');
-                bar.className = "visualizer-bar"; // Add a class for easier styling
-                bar.style.width = '8px';
-                bar.style.height = '4px';
-                bar.style.backgroundColor = '#9333ea';
-                bar.style.borderRadius = '4px';
+                bar.style.cssText = "width:6px; height:4px; background:#9333ea; border-radius:3px; transition: height 0.05s ease;";
                 container.appendChild(bar);
             }
 
-            function draw() {
-                if (mediaRecorder.state === "recording") {
-                    requestAnimationFrame(draw);
-                    analyser.getByteFrequencyData(dataArray);
-                    const bars = container.querySelectorAll('div');
-                    bars.forEach((bar, i) => {
-                        const val = dataArray[i];
-                        const height = (val / 255) * 50;
-                        bar.style.height = Math.max(4, height) + 'px';
-                    });
-                }
-            }
-
+            // RECORDER
+            mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
             audioChunks = [];
+            
             mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
             mediaRecorder.onstop = () => {
                 const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
@@ -148,13 +129,29 @@
             };
 
             mediaRecorder.start();
-            draw();
-            
+
+            // ANIMATION LOOP
+            function animate() {
+                if (mediaRecorder && mediaRecorder.state === "recording") {
+                    analyser.getByteFrequencyData(dataArray);
+                    const bars = container.querySelectorAll('div');
+                    bars.forEach((bar, i) => {
+                        const val = dataArray[i];
+                        const h = (val / 255) * 60;
+                        bar.style.height = Math.max(4, h) + "px";
+                    });
+                    requestAnimationFrame(animate);
+                }
+            }
+            animate();
+
             mainBtn.innerText = "STOP";
             mainBtn.classList.replace('bg-purple-600', 'bg-red-500');
             statusMsg.innerText = "Listening...";
+
         } catch (err) {
-            statusMsg.innerText = "Mic Error";
+            console.error("Mic Error:", err);
+            statusMsg.innerText = "Check mic permissions!";
         }
     } else {
         mediaRecorder.stop();
@@ -164,102 +161,76 @@
     }
 });
 
-        async function processAudio(blob) {
-            cardLetters.style.display = 'none';
-            cardLoader.style.display = 'block';
-
-            const reader = new FileReader();
-            reader.readAsDataURL(blob);
-            reader.onloadend = async () => {
-                const base64Audio = reader.result.split(',')[1];
-                try {
-                    const response = await fetch(APPS_SCRIPT_URL, {
-                        method: "POST",
-                        body: JSON.stringify({
-                            phonogram: phonograms[currentIndex].letters,
-                            audio: base64Audio
-                        }),
-                        redirect: "follow"
-                    });
-                    const rawResult = await response.text();
-                    const parts = rawResult.split('|');
-                    const verdict = parts[0].trim().toUpperCase();
-                    const reason = parts[1] ? parts[1].trim() : "No reason provided";
-
-                    document.getElementById('debug-log').innerText = `AI HEARD: ${reason}`;
-                    handleVerdict(verdict === "CORRECT");
-                } catch (e) {
-                    statusMsg.innerText = "Connection Error";
-                    resetButton();
-                }
-            };
-        }
-
-        function handleVerdict(isCorrect) {
-            if (isCorrect) {
-                statusMsg.innerText = "CORRECT!";
-                playDing();
-                addSticker();
-                attempts = 0;
-                setTimeout(moveToNextCard, 2000);
-            } else {
-                attempts++;
-                if (attempts >= 2) {
-                    statusMsg.innerText = "Let's move on!";
-                    playTeacherAudio();
-                    attempts = 0; 
-                    setTimeout(moveToNextCard, 4000);
-                } else {
-                    statusMsg.innerText = "Try one more time!";
-                    playTeacherAudio();
-                    setTimeout(() => {
-                        updateCard();
-                        resetButton();
-                    }, 3000);
-                }
-            }
-        }
-
-        function playTeacherAudio() {
-            const audio = document.getElementById('teacher-audio');
-            audio.src = `audio/${phonograms[currentIndex].letters}.mp3`;
-            audio.play().catch(() => console.log("Audio missing"));
-        }
-
-        function moveToNextCard() {
-            currentIndex = (currentIndex + 1) % phonograms.length;
-            updateCard();
-            statusMsg.innerText = "Ready!";
+async function processAudio(blob) {
+    cardLetters.style.display = 'none';
+    cardLoader.style.display = 'block';
+    const reader = new FileReader();
+    reader.readAsDataURL(blob);
+    reader.onloadend = async () => {
+        const base64Audio = reader.result.split(',')[1];
+        try {
+            const response = await fetch(APPS_SCRIPT_URL, {
+                method: "POST",
+                body: JSON.stringify({ phonogram: phonograms[currentIndex].letters, audio: base64Audio }),
+                redirect: "follow"
+            });
+            const rawResult = await response.text();
+            const parts = rawResult.split('|');
+            document.getElementById('debug-log').innerText = `AI HEARD: ${parts[1] || 'Silence'}`;
+            handleVerdict(parts[0].trim().toUpperCase() === "CORRECT");
+        } catch (e) {
+            statusMsg.innerText = "Server Error";
             resetButton();
         }
+    };
+}
 
-        function resetButton(immediate = false) {
-            setTimeout(() => {
-                isCoolingDown = false; 
-                mainBtn.innerText = "PUSH TO SPEAK";
-                mainBtn.classList.remove('bg-yellow-500', 'bg-red-500', 'bg-gray-400');
-                mainBtn.classList.add('bg-purple-600');
-            }, immediate ? 0 : 3000);
-        }
+function handleVerdict(isCorrect) {
+    if (isCorrect) {
+        statusMsg.innerText = "CORRECT!";
+        playDing();
+        addSticker();
+        setTimeout(moveToNextCard, 2000);
+    } else {
+        attempts++;
+        statusMsg.innerText = attempts >= 2 ? "Let's move on!" : "Try again!";
+        setTimeout(() => { if(attempts >= 2) { attempts=0; moveToNextCard(); } else { updateCard(); resetButton(); } }, 2000);
+    }
+}
 
-        function playDing() {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
-            const osc = ctx.createOscillator();
-            const g = ctx.createGain();
-            osc.connect(g); g.connect(ctx.destination);
-            osc.frequency.value = 880;
-            g.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + 0.5);
-            osc.start(); osc.stop(ctx.currentTime + 0.5);
-        }
+function moveToNextCard() {
+    currentIndex = (currentIndex + 1) % phonograms.length;
+    updateCard();
+    resetButton();
+}
 
-        function addSticker() {
-            stickers++;
-            document.getElementById('sticker-count').innerText = `⭐ ${stickers}`;
-            const s = document.createElement('div');
-            s.className = "text-3xl sticker";
-            s.innerText = "🍦"; 
-            document.getElementById('sticker-shelf').appendChild(s);
-        }
+function resetButton() {
+    setTimeout(() => {
+        isCoolingDown = false;
+        mainBtn.innerText = "PUSH TO SPEAK";
+        mainBtn.classList.remove('bg-gray-400', 'bg-red-500');
+        mainBtn.classList.add('bg-purple-600');
+    }, 1000);
+}
+
+function playDing() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.connect(g); g.connect(ctx.destination);
+    osc.frequency.value = 880;
+    g.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + 0.5);
+    osc.start(); osc.stop(ctx.currentTime + 0.5);
+}
+
+function addSticker() {
+    stickers++;
+    document.getElementById('sticker-count').innerText = `⭐ ${stickers}`;
+    const s = document.createElement('div');
+    s.className = "text-3xl sticker";
+    s.innerText = "🍦"; 
+    document.getElementById('sticker-shelf').appendChild(s);
+}
         </script>
 </body>
 </html>
