@@ -51,7 +51,7 @@
     <audio id="teacher-audio"></audio>
 
     <script>
-        // --- CONFIGURATION ---
+       // --- CONFIGURATION ---
         const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwaS3Hx1WYlrkM3E0rjcwcCfJx4RZSx0urgMVMNXXdonAZxQTPxqIs3V9L9Nxza1nGL/exec"; 
         
         const phonograms = [
@@ -64,7 +64,7 @@
         let currentIndex = 0;
         let stickers = 0;
         let attempts = 0;
-        let mediaRecorder;
+        let mediaRecorder = null;
         let audioChunks = [];
         let audioContext, analyser, dataArray, animationId;
         let isCoolingDown = false; 
@@ -86,29 +86,25 @@
         }
 
         mainBtn.addEventListener('click', async () => {
-    // FORCE RESET if stuck
-    if (mediaRecorder && mediaRecorder.state === "inactive") {
-        mediaRecorder = null; 
-    }
-
-    if (isCoolingDown) return;
-
-    if (!mediaRecorder) { // Simplified check
-        try {
-            console.log("Attempting to start mic..."); // Open your browser console (F12) to see this
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            console.log("Button clicked. State:", mediaRecorder ? mediaRecorder.state : "no recorder");
             
-            // Check if browser supports the specific codec
-            const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
-                             ? 'audio/webm;codecs=opus' 
-                             : 'audio/webm';
+            if (isCoolingDown) return;
 
-            mediaRecorder = new MediaRecorder(stream, { mimeType });
-            console.log("Recorder started using:", mimeType);
+            // IF INACTIVE OR NULL, START RECORDING
+            if (!mediaRecorder || mediaRecorder.state === "inactive") {
+                try {
+                    console.log("Requesting microphone...");
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    
+                    // Setup Recorder Options
+                    const options = { mimeType: 'audio/webm;codecs=opus' };
                     mediaRecorder = new MediaRecorder(stream, options);
+                    console.log("MediaRecorder created.");
 
                     // Setup Visualizer
-                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    if (audioContext.state === 'suspended') await audioContext.resume();
+                    
                     const source = audioContext.createMediaStreamSource(stream);
                     analyser = audioContext.createAnalyser();
                     analyser.fftSize = 32;
@@ -140,25 +136,30 @@
                     audioChunks = [];
                     mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
                     mediaRecorder.onstop = () => {
+                        console.log("Recording stopped. Processing...");
                         cancelAnimationFrame(animationId);
                         const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                         if (audioBlob.size < 500) {
                             statusMsg.innerText = "Too quiet! Try again.";
-                            resetButton(true); // reset without cooldown
+                            resetButton(true);
                             return;
                         }
                         processAudio(audioBlob);
                     };
 
                     mediaRecorder.start();
+                    console.log("MediaRecorder started.");
                     mainBtn.innerText = "STOP";
                     mainBtn.classList.replace('bg-purple-600', 'bg-red-500');
                     statusMsg.innerText = "Listening...";
 
                 } catch (err) {
-                    statusMsg.innerText = "Mic access denied";
+                    console.error("Mic Error:", err);
+                    statusMsg.innerText = "Mic access denied or error.";
                 }
-            } else {
+            } 
+            // IF RECORDING, STOP IT
+            else if (mediaRecorder.state === "recording") {
                 mediaRecorder.stop();
                 isCoolingDown = true;
                 mainBtn.innerText = "PROCESSING...";
@@ -184,6 +185,8 @@
                         redirect: "follow"
                     });
                     const rawResult = await response.text();
+                    console.log("Apps Script Response:", rawResult);
+                    
                     const parts = rawResult.split('|');
                     const verdict = parts[0].trim().toUpperCase();
                     const reason = parts[1] ? parts[1].trim() : "No reason provided";
@@ -191,6 +194,7 @@
                     document.getElementById('debug-log').innerText = `AI HEARD: ${reason}`;
                     handleVerdict(verdict === "CORRECT");
                 } catch (e) {
+                    console.error("Fetch Error:", e);
                     statusMsg.innerText = "Connection Error";
                     resetButton();
                 }
@@ -245,7 +249,7 @@
         }
 
         function playDing() {
-            const ctx = new AudioContext();
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
             const osc = ctx.createOscillator();
             const g = ctx.createGain();
             osc.connect(g); g.connect(ctx.destination);
@@ -262,6 +266,3 @@
             s.innerText = "🍦"; 
             document.getElementById('sticker-shelf').appendChild(s);
         }
-    </script>
-</body>
-</html>
