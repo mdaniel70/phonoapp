@@ -92,75 +92,88 @@
             }
         }
 
-        mainBtn.addEventListener('click', async () => {
-            if (isCoolingDown) return;
+     mainBtn.addEventListener('click', async () => {
+    console.log("Button clicked. State:", mediaRecorder ? mediaRecorder.state : "no recorder");
+    
+    if (isCoolingDown) return;
 
-            if (!mediaRecorder || mediaRecorder.state === "inactive") {
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    const options = { mimeType: 'audio/webm;codecs=opus' };
-                    mediaRecorder = new MediaRecorder(stream, options);
-
-                    if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                    if (audioContext.state === 'suspended') await audioContext.resume();
-                    
-                    const source = audioContext.createMediaStreamSource(stream);
-                    analyser = audioContext.createAnalyser();
-                    analyser.fftSize = 32;
-                    source.connect(analyser);
-                    
-                    const bufferLength = analyser.frequencyBinCount;
-                    dataArray = new Uint8Array(bufferLength);
-                    const container = document.getElementById('visualizer-container');
-                    container.innerHTML = ''; 
-                    for (let i = 0; i < bufferLength; i++) {
-                        const bar = document.createElement('div');
-                        bar.style.width = '8px';
-                        bar.style.backgroundColor = '#9333ea';
-                        bar.style.borderRadius = '4px';
-                        container.appendChild(bar);
-                    }
-
-                    function draw() {
-                        animationId = requestAnimationFrame(draw);
-                        analyser.getByteFrequencyData(dataArray);
-                        const bars = container.querySelectorAll('div');
-                        dataArray.forEach((value, i) => {
-                            const height = (value / 255) * 50;
-                            if(bars[i]) bars[i].style.height = `${Math.max(4, height)}px`;
-                        });
-                    }
-                    draw();
-
-                    audioChunks = [];
-                    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-                    mediaRecorder.onstop = () => {
-                        cancelAnimationFrame(animationId);
-                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                        if (audioBlob.size < 500) {
-                            statusMsg.innerText = "Too quiet! Try again.";
-                            resetButton(true);
-                            return;
-                        }
-                        processAudio(audioBlob);
-                    };
-
-                    mediaRecorder.start();
-                    mainBtn.innerText = "STOP";
-                    mainBtn.classList.replace('bg-purple-600', 'bg-red-500');
-                    statusMsg.innerText = "Listening...";
-
-                } catch (err) {
-                    console.error("Mic Access Error:", err);
-                    statusMsg.innerText = "Mic access denied";
-                }
-            } else {
-                mediaRecorder.stop();
-                isCoolingDown = true;
-                mainBtn.innerText = "PROCESSING...";
-                mainBtn.classList.replace('bg-red-500', 'bg-gray-400');
+    if (!mediaRecorder || mediaRecorder.state === "inactive") {
+        try {
+            console.log("Requesting microphone...");
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            
+            // 1. HARD RESET AUDIO CONTEXT
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
             }
-        });
+            
+            // 2. CRITICAL: Wake up the audio hardware
+            if (audioContext.state === 'suspended') {
+                await audioContext.resume();
+            }
+
+            const options = { mimeType: 'audio/webm;codecs=opus' };
+            mediaRecorder = new MediaRecorder(stream, options);
+
+            // Setup Visualizer
+            const source = audioContext.createMediaStreamSource(stream);
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 64; // Slightly higher for better movement
+            source.connect(analyser);
+            
+            const bufferLength = analyser.frequencyBinCount;
+            dataArray = new Uint8Array(bufferLength);
+            const container = document.getElementById('visualizer-container');
+            container.innerHTML = ''; 
+            
+            for (let i = 0; i < bufferLength; i++) {
+                const bar = document.createElement('div');
+                bar.style.width = '8px';
+                bar.style.height = '4px'; // Start visible
+                bar.style.backgroundColor = '#9333ea';
+                bar.style.borderRadius = '4px';
+                bar.style.transition = 'height 0.1s ease'; // Smoother movement
+                container.appendChild(bar);
+            }
+
+            function draw() {
+                if (mediaRecorder && mediaRecorder.state === "recording") {
+                    animationId = requestAnimationFrame(draw);
+                    analyser.getByteFrequencyData(dataArray);
+                    const bars = container.querySelectorAll('div');
+                    dataArray.forEach((value, i) => {
+                        const height = (value / 255) * 60; // Scale up for visibility
+                        if(bars[i]) bars[i].style.height = `${Math.max(4, height)}px`;
+                    });
+                }
+            }
+            
+            audioChunks = [];
+            mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+            mediaRecorder.onstop = () => {
+                cancelAnimationFrame(animationId);
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                processAudio(audioBlob);
+            };
+
+            mediaRecorder.start();
+            draw(); // Start the visualizer loop
+            
+            mainBtn.innerText = "STOP";
+            mainBtn.classList.replace('bg-purple-600', 'bg-red-500');
+            statusMsg.innerText = "Listening...";
+
+        } catch (err) {
+            console.error("Mic Access Error:", err);
+            statusMsg.innerText = "Mic access denied";
+        }
+    } else {
+        mediaRecorder.stop();
+        isCoolingDown = true;
+        mainBtn.innerText = "PROCESSING...";
+        mainBtn.classList.replace('bg-red-500', 'bg-gray-400');
+    }
+});
 
         async function processAudio(blob) {
             cardLetters.style.display = 'none';
