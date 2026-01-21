@@ -92,80 +92,69 @@
             }
         }
 
-     mainBtn.addEventListener('click', async () => {
-    console.log("Button clicked. State:", mediaRecorder ? mediaRecorder.state : "no recorder");
-    
+    mainBtn.addEventListener('click', async () => {
     if (isCoolingDown) return;
 
     if (!mediaRecorder || mediaRecorder.state === "inactive") {
         try {
-            console.log("Requesting microphone...");
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             
-            // 1. HARD RESET AUDIO CONTEXT
+            // Create Context if it doesn't exist
             if (!audioContext) {
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
             }
-            
-            // 2. CRITICAL: Wake up the audio hardware
-            if (audioContext.state === 'suspended') {
-                await audioContext.resume();
-            }
+            // Resume Context immediately on user click
+            await audioContext.resume();
 
             const options = { mimeType: 'audio/webm;codecs=opus' };
             mediaRecorder = new MediaRecorder(stream, options);
 
-            // Setup Visualizer
+            // Visualizer setup
             const source = audioContext.createMediaStreamSource(stream);
             analyser = audioContext.createAnalyser();
-            analyser.fftSize = 64; // Slightly higher for better movement
             source.connect(analyser);
             
-            const bufferLength = analyser.frequencyBinCount;
-            dataArray = new Uint8Array(bufferLength);
+            dataArray = new Uint8Array(analyser.frequencyBinCount);
             const container = document.getElementById('visualizer-container');
             container.innerHTML = ''; 
-            
-            for (let i = 0; i < bufferLength; i++) {
+            for (let i = 0; i < 16; i++) { // 16 bars
                 const bar = document.createElement('div');
+                bar.className = "visualizer-bar"; // Add a class for easier styling
                 bar.style.width = '8px';
-                bar.style.height = '4px'; // Start visible
+                bar.style.height = '4px';
                 bar.style.backgroundColor = '#9333ea';
                 bar.style.borderRadius = '4px';
-                bar.style.transition = 'height 0.1s ease'; // Smoother movement
                 container.appendChild(bar);
             }
 
             function draw() {
-                if (mediaRecorder && mediaRecorder.state === "recording") {
-                    animationId = requestAnimationFrame(draw);
+                if (mediaRecorder.state === "recording") {
+                    requestAnimationFrame(draw);
                     analyser.getByteFrequencyData(dataArray);
                     const bars = container.querySelectorAll('div');
-                    dataArray.forEach((value, i) => {
-                        const height = (value / 255) * 60; // Scale up for visibility
-                        if(bars[i]) bars[i].style.height = `${Math.max(4, height)}px`;
+                    bars.forEach((bar, i) => {
+                        const val = dataArray[i];
+                        const height = (val / 255) * 50;
+                        bar.style.height = Math.max(4, height) + 'px';
                     });
                 }
             }
-            
+
             audioChunks = [];
             mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
             mediaRecorder.onstop = () => {
-                cancelAnimationFrame(animationId);
                 const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                 processAudio(audioBlob);
             };
 
             mediaRecorder.start();
-            draw(); // Start the visualizer loop
+            draw();
             
             mainBtn.innerText = "STOP";
             mainBtn.classList.replace('bg-purple-600', 'bg-red-500');
             statusMsg.innerText = "Listening...";
-
         } catch (err) {
-            console.error("Mic Access Error:", err);
-            statusMsg.innerText = "Mic access denied";
+            statusMsg.innerText = "Mic Error";
         }
     } else {
         mediaRecorder.stop();
