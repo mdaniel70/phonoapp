@@ -201,22 +201,23 @@
             });
 
             const rawResult = await response.text();
-            const json = JSON.parse(rawResult);
-            
-            if (json.candidates && json.candidates[0].content.parts[0].text) {
-                const aiText = json.candidates[0].content.parts[0].text;
-                
-                // --- THE BETTER GRADING LOGIC ---
-                // We split the result at the "|" symbol to get just the first word
-                const verdictPart = aiText.split('|')[0].trim().toUpperCase();
-                
-                // Only mark correct if it specifically matches "CORRECT" 
-                // and NOT "INCORRECT"
-                const isCorrect = (verdictPart === "CORRECT");
+const json = JSON.parse(rawResult);
 
-                document.getElementById('debug-log').innerText = "AI THOUGHT: " + aiText;
-                handleVerdict(isCorrect);
-            }
+if (json.candidates && json.candidates[0].content.parts[0].text) {
+    const aiText = json.candidates[0].content.parts[0].text;
+    
+    // --- THE FIX ---
+    // 1. Convert to Uppercase
+    // 2. Check if the string STARTS with CORRECT
+    const upperText = aiText.toUpperCase().trim();
+    const isCorrect = upperText.startsWith("CORRECT");
+
+    // Update the black box so you can see exactly what we are testing
+    document.getElementById('debug-log').innerText = "AI SAID: " + aiText;
+    
+    // Send to the visual handler
+    handleVerdict(isCorrect);
+}
 
         } catch (e) {
             console.error("Error:", e);
