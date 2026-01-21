@@ -41,16 +41,17 @@
             PUSH TO SPEAK
         </button>
     </div>
-<div id="debug-log" class="mt-8 p-4 bg-gray-800 text-green-400 font-mono text-xs rounded-lg w-full max-w-md overflow-hidden" style="display: block;">
-    DEBUG: Waiting for first recording...
-</div>
+
+    <div id="debug-log" class="mt-8 p-4 bg-gray-800 text-green-400 font-mono text-xs rounded-lg w-full max-w-md overflow-hidden" style="display: block;">
+        DEBUG: Waiting for first recording...
+    </div>
+
     <div id="sticker-shelf" class="mt-12 flex flex-wrap justify-center gap-2 max-w-md"></div>
 
     <audio id="teacher-audio"></audio>
 
     <script>
         // --- CONFIGURATION ---
-        // REPLACE THE URL BELOW WITH YOUR APPS SCRIPT URL
         const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwaS3Hx1WYlrkM3E0rjcwcCfJx4RZSx0urgMVMNXXdonAZxQTPxqIs3V9L9Nxza1nGL/exec"; 
         
         const phonograms = [
@@ -62,18 +63,17 @@
 
         let currentIndex = 0;
         let stickers = 0;
-        let attempts = 0; // Tracks tries for the CURRENT card
+        let attempts = 0;
         let mediaRecorder;
         let audioChunks = [];
         let audioContext, analyser, dataArray, animationId;
-        let isCoolingDown = false; // New: prevents rapid-fire clicks
+        let isCoolingDown = false; 
         
         const mainBtn = document.getElementById('main-btn');
         const statusMsg = document.getElementById('status-msg');
         const cardLetters = document.getElementById('card-letters');
         const cardLoader = document.getElementById('card-loader');
 
-        // Initial Load
         window.addEventListener('load', () => {
             updateCard();
             statusMsg.innerText = "Ready for your sounds";
@@ -85,29 +85,16 @@
             cardLoader.style.display = 'none';
         }
 
-       mainBtn.addEventListener('click', async () => {
-           if (isCoolingDown) {
-        statusMsg.innerText = "Wait a moment...";
-        return;
-    }
-    if (!mediaRecorder || mediaRecorder.state === "inactive") {
-        try {
-            // 1. Get the raw audio stream from the mic
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            
-            // 2. THIS IS WHERE THE OPTIONS GO
-            const options = { 
-                mimeType: 'audio/webm;codecs=opus', 
-                audioBitsPerSecond: 128000 
-                } else {
-        mediaRecorder.stop();
-        isCoolingDown = true; // LOCK the button
-        mainBtn.innerText = "PROCESSING...";
-        mainBtn.classList.replace('bg-red-500', 'bg-gray-400'); // Turn gray
-    }
-});
-            };
+        mainBtn.addEventListener('click', async () => {
+            if (isCoolingDown) return;
+
+            if (!mediaRecorder || mediaRecorder.state === "inactive") {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     
+                    const options = { mimeType: 'audio/webm;codecs=opus' };
+                    mediaRecorder = new MediaRecorder(stream, options);
+
                     // Setup Visualizer
                     audioContext = new (window.AudioContext || window.webkitAudioContext)();
                     const source = audioContext.createMediaStreamSource(stream);
@@ -117,7 +104,6 @@
                     
                     const bufferLength = analyser.frequencyBinCount;
                     dataArray = new Uint8Array(bufferLength);
-                    
                     const container = document.getElementById('visualizer-container');
                     container.innerHTML = ''; 
                     for (let i = 0; i < bufferLength; i++) {
@@ -139,79 +125,64 @@
                     }
                     draw();
 
-                    // Start Recorder
-                   mediaRecorder = new MediaRecorder(stream, options);
-
-audioChunks = [];
-mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-
-mediaRecorder.onstop = () => {
-    cancelAnimationFrame(animationId);
-    
-    // 3. IMPORTANT: Use the exact same type here as you did above
-    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-    
-    if (audioBlob.size < 500) { // Lowered from 2000 to be more sensitive
-        statusMsg.innerText = "Too quiet! Try again.";
-        resetButton();
-        return;
-    }
-    processAudio(audioBlob);
-};
+                    audioChunks = [];
+                    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                    mediaRecorder.onstop = () => {
+                        cancelAnimationFrame(animationId);
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        if (audioBlob.size < 500) {
+                            statusMsg.innerText = "Too quiet! Try again.";
+                            resetButton(true); // reset without cooldown
+                            return;
+                        }
+                        processAudio(audioBlob);
+                    };
 
                     mediaRecorder.start();
                     mainBtn.innerText = "STOP";
                     mainBtn.classList.replace('bg-purple-600', 'bg-red-500');
                     statusMsg.innerText = "Listening...";
+
                 } catch (err) {
                     statusMsg.innerText = "Mic access denied";
                 }
             } else {
                 mediaRecorder.stop();
+                isCoolingDown = true;
                 mainBtn.innerText = "PROCESSING...";
-                mainBtn.classList.replace('bg-red-500', 'bg-yellow-500');
+                mainBtn.classList.replace('bg-red-500', 'bg-gray-400');
             }
         });
 
-      async function processAudio(blob) {
-    cardLetters.style.display = 'none';
-    cardLoader.style.display = 'block';
+        async function processAudio(blob) {
+            cardLetters.style.display = 'none';
+            cardLoader.style.display = 'block';
 
-    const reader = new FileReader();
-    reader.readAsDataURL(blob);
-    reader.onloadend = async () => {
-        const base64Audio = reader.result.split(',')[1];
-        try {
-            const response = await fetch(APPS_SCRIPT_URL, {
-                method: "POST",
-                body: JSON.stringify({
-                    phonogram: phonograms[currentIndex].letters,
-                    audio: base64Audio
-                }),
-                redirect: "follow"
-            });
-            const rawResult = await response.text();
-            
-            // Split the "VERDICT | REASON"
-            const parts = rawResult.split('|');
-            const verdict = parts[0].trim().toUpperCase();
-            const reason = parts[1] ? parts[1].trim() : "No reason provided";
+            const reader = new FileReader();
+            reader.readAsDataURL(blob);
+            reader.onloadend = async () => {
+                const base64Audio = reader.result.split(',')[1];
+                try {
+                    const response = await fetch(APPS_SCRIPT_URL, {
+                        method: "POST",
+                        body: JSON.stringify({
+                            phonogram: phonograms[currentIndex].letters,
+                            audio: base64Audio
+                        }),
+                        redirect: "follow"
+                    });
+                    const rawResult = await response.text();
+                    const parts = rawResult.split('|');
+                    const verdict = parts[0].trim().toUpperCase();
+                    const reason = parts[1] ? parts[1].trim() : "No reason provided";
 
-            // Update the Debug Log on screen
-            document.getElementById('debug-log').innerText = `AI HEARD: ${reason}`;
-
-            handleVerdict(verdict === "CORRECT");
-  } catch (e) {
-    console.log("Error details:", e);
-    if (e.toString().includes("429") || e.toString().includes("Resource exhausted")) {
-        statusMsg.innerText = "Teacher is busy! Wait 1 minute.";
-    } else {
-        statusMsg.innerText = "Connection Error. Try again?";
-    }
-    updateCard();
-    resetButton();
-}
-    };
+                    document.getElementById('debug-log').innerText = `AI HEARD: ${reason}`;
+                    handleVerdict(verdict === "CORRECT");
+                } catch (e) {
+                    statusMsg.innerText = "Connection Error";
+                    resetButton();
+                }
+            };
         }
 
         function handleVerdict(isCorrect) {
@@ -219,18 +190,16 @@ mediaRecorder.onstop = () => {
                 statusMsg.innerText = "CORRECT!";
                 playDing();
                 addSticker();
-                attempts = 0; // Reset attempts for next card
+                attempts = 0;
                 setTimeout(moveToNextCard, 2000);
             } else {
                 attempts++;
                 if (attempts >= 2) {
-                    // Fail State - Move on after 2 tries
                     statusMsg.innerText = "Let's move on!";
                     playTeacherAudio();
                     attempts = 0; 
                     setTimeout(moveToNextCard, 4000);
                 } else {
-                    // Try Again State
                     statusMsg.innerText = "Try one more time!";
                     playTeacherAudio();
                     setTimeout(() => {
@@ -254,15 +223,14 @@ mediaRecorder.onstop = () => {
             resetButton();
         }
 
-        function resetButton() {
-    // Add a 3-second "breath" before allowing another attempt
-    setTimeout(() => {
-        isCoolingDown = false; 
-        mainBtn.innerText = "PUSH TO SPEAK";
-        mainBtn.classList.remove('bg-yellow-500', 'bg-red-500', 'bg-gray-400');
-        mainBtn.classList.add('bg-purple-600');
-    }, 3000); // 3000ms = 3 seconds
-}
+        function resetButton(immediate = false) {
+            setTimeout(() => {
+                isCoolingDown = false; 
+                mainBtn.innerText = "PUSH TO SPEAK";
+                mainBtn.classList.remove('bg-yellow-500', 'bg-red-500', 'bg-gray-400');
+                mainBtn.classList.add('bg-purple-600');
+            }, immediate ? 0 : 3000);
+        }
 
         function playDing() {
             const ctx = new AudioContext();
