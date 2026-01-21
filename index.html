@@ -84,10 +84,17 @@
             cardLoader.style.display = 'none';
         }
 
-        mainBtn.addEventListener('click', async () => {
-            if (!mediaRecorder || mediaRecorder.state === "inactive") {
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+       mainBtn.addEventListener('click', async () => {
+    if (!mediaRecorder || mediaRecorder.state === "inactive") {
+        try {
+            // 1. Get the raw audio stream from the mic
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            
+            // 2. THIS IS WHERE THE OPTIONS GO
+            const options = { 
+                mimeType: 'audio/webm;codecs=opus', 
+                audioBitsPerSecond: 128000 
+            };
                     
                     // Setup Visualizer
                     audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -121,19 +128,24 @@
                     draw();
 
                     // Start Recorder
-                   mediaRecorder = new MediaRecorder(stream, { audioBitsPerSecond: 128000 });
-                    audioChunks = [];
-                    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-                    mediaRecorder.onstop = () => {
-                        cancelAnimationFrame(animationId);
-                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                        if (audioBlob.size < 2000) {
-                            statusMsg.innerText = "Too quiet! Try again.";
-                            resetButton();
-                            return;
-                        }
-                        processAudio(audioBlob);
-                    };
+                   mediaRecorder = new MediaRecorder(stream, options);
+
+audioChunks = [];
+mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+
+mediaRecorder.onstop = () => {
+    cancelAnimationFrame(animationId);
+    
+    // 3. IMPORTANT: Use the exact same type here as you did above
+    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+    
+    if (audioBlob.size < 500) { // Lowered from 2000 to be more sensitive
+        statusMsg.innerText = "Too quiet! Try again.";
+        resetButton();
+        return;
+    }
+    processAudio(audioBlob);
+};
 
                     mediaRecorder.start();
                     mainBtn.innerText = "STOP";
