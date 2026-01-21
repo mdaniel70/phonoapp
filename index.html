@@ -210,33 +210,54 @@ try {
 
         // MOVED OUTSIDE OF PROCESSAUDIO TO ENSURE GLOBAL ACCESS
         function handleVerdict(isCorrect) {
-            cardLoader.style.display = 'none';
-            cardLetters.style.display = 'block';
-            
-            if (isCorrect) {
-                attempts = 0; // Reset attempts on success
-                statusMsg.innerText = "YES! YOU ARE CORRECT!";
-                statusMsg.className = "mt-4 text-green-600 font-bold uppercase tracking-widest text-sm text-center px-4";
-                playDing();
-                addSticker();
-                setTimeout(moveToNextCard, 2000);
-            } else {
-                attempts++;
-                statusMsg.className = "mt-4 text-red-500 font-bold uppercase tracking-widest text-sm text-center px-4";
-                
-                if (attempts >= 2) {
-                    statusMsg.innerText = "Let's go to the next one.";
-                    attempts = 0; 
-                    setTimeout(moveToNextCard, 3000);
-                } else {
-                    statusMsg.innerText = "Try one more time!";
-                    setTimeout(() => {
-                        updateCard();
-                        resetButton();
-                    }, 2500);
-                }
-            }
+    cardLoader.style.display = 'none';
+    cardLetters.style.display = 'block';
+    
+    if (isCorrect) {
+        // If they got it right, we don't care if it was attempt 1, 2, or 3
+        // But you mentioned marking it "incorrect" for scoring—we can track that here
+        if (attempts > 0) {
+            console.log("Got it right, but not on the first try.");
         }
+
+        statusMsg.innerText = "YES! YOU ARE CORRECT!";
+        statusMsg.className = "mt-4 text-green-600 font-bold uppercase tracking-widest text-sm text-center px-4";
+        playDing();
+        addSticker();
+        attempts = 0; // Reset for the next card
+        setTimeout(moveToNextCard, 2000);
+    } else {
+        attempts++;
+        statusMsg.className = "mt-4 text-red-500 font-bold uppercase tracking-widest text-sm text-center px-4";
+        
+        if (attempts === 1) {
+            // FIRST FAILURE
+            statusMsg.innerText = "Try one more time!";
+            setTimeout(() => {
+                updateCard();
+                resetButton();
+            }, 2500);
+        } else if (attempts === 2) {
+            // SECOND FAILURE - Play Audio and give a final chance
+            statusMsg.innerText = "Listen and try one last time!";
+            
+            // Play the teacher recording
+            const audioPlayer = document.getElementById('teacher-audio');
+            audioPlayer.src = phonograms[currentIndex].audioSrc;
+            audioPlayer.play();
+
+            setTimeout(() => {
+                updateCard();
+                resetButton();
+            }, 4000); // Give them time to listen before the button resets
+        } else {
+            // THIRD FAILURE - Move on
+            statusMsg.innerText = "Let's move to the next one.";
+            attempts = 0; 
+            setTimeout(moveToNextCard, 3000);
+        }
+    }
+}
 
         function moveToNextCard() {
             currentIndex = (currentIndex + 1) % phonograms.length;
