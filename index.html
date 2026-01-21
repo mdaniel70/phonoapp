@@ -95,7 +95,19 @@ mainBtn.addEventListener('click', async () => {
 
     if (!mediaRecorder || mediaRecorder.state === "inactive") {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+    audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+    } 
+});
+
+const options = { 
+    mimeType: 'audio/webm;codecs=opus',
+    audioBitsPerSecond: 128000 // Higher quality audio
+};
+mediaRecorder = new MediaRecorder(stream, options);
             
             // WAKE UP AUDIO HARDWARE
             if (!audioContext) {
@@ -204,12 +216,17 @@ async function processAudio(blob) {
 });
             
             const rawResult = await response.text();
-            const rawResult = await response.text();
-document.getElementById('debug-log').innerText = "AI Response: " + rawResult; // Add this line
-            // We only care about the word "CORRECT" being in the response
-            const isCorrect = rawResult.toUpperCase().includes("CORRECT");
-            
-            handleVerdict(isCorrect);
+console.log("Raw AI Data:", rawResult);
+
+// This logic pulls out the reasoning from the Gemini JSON
+const json = JSON.parse(rawResult);
+const aiText = json.candidates[0].content.parts[0].text;
+const isCorrect = aiText.toUpperCase().includes("CORRECT");
+
+// Show the student the AI's "Reason" in the debug log
+document.getElementById('debug-log').innerText = "AI THOUGHT: " + aiText;
+
+handleVerdict(isCorrect);
         } catch (e) {
             console.error("Fetch Error:", e);
             statusMsg.innerText = "Connection Error";
