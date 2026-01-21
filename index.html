@@ -51,10 +51,7 @@
     <audio id="teacher-audio"></audio>
 
     <script>
-        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxzUUoRDJUvh5titkwtQk1mid_sBfTkCaQfxoIbeT3NPXmjVLksvp76EQimRhF4IFa9/exec"; 
-
-     <script>
-        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxzUUoRDJUvh5titkwtQk1mid_sBfTkCaQfxoIbeT3NPXmjVLksvp76EQimRhF4IFa9/exec"; 
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw1w-yxIv2diPqcOOOLobwPjYPS2Dg5k0PrF9oS4pST6owy_WjDqTytb-rOJohUxZTv/exec"; 
 
         const phonograms = [
             { letters: "sh", type: "sound", target: "/sh/" },
@@ -140,8 +137,7 @@
                     target: phonograms[currentIndex].target,
                     audio: base64Audio
                 };
-
-                try {
+try {
                     const response = await fetch(APPS_SCRIPT_URL, {
                         method: "POST",
                         headers: { "Content-Type": "text/plain;charset=utf-8" }, 
@@ -152,13 +148,19 @@
                     const json = JSON.parse(rawResult);
                     const aiText = json.candidates[0].content.parts[0].text;
                     
-                    // CLEAR LOGIC: Look for CORRECT but not INCORRECT in the whole response
-                    const isCorrect = aiText.toUpperCase().includes("CORRECT") && !aiText.toUpperCase().includes("INCORRECT");
+                    // --- THE NEW YES/NO LOGIC ---
+                    const upperResponse = aiText.toUpperCase().trim();
+                    
+                    // We check if the response starts with "YES"
+                    const isCorrect = upperResponse.startsWith("YES");
 
                     document.getElementById('debug-log').innerText = "AI THOUGHT: " + aiText;
                     
-                    // TRIGGER VERDICT
+                    // This will show in the F12 console to confirm
+                    console.log("Did Gemini say YES?", isCorrect);
+
                     handleVerdict(isCorrect);
+
                 } catch (e) {
                     statusMsg.innerText = "Connection Error";
                     resetButton();
