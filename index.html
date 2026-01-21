@@ -42,7 +42,7 @@
         </button>
     </div>
 
-    <div id="debug-log" class="mt-8 p-4 bg-gray-800 text-green-400 font-mono text-xs rounded-lg w-full max-w-md overflow-hidden" style="display: block;">
+    <div id="debug-log" style="display: block;"></div>
         DEBUG: Waiting for first recording...
     </div>
 
@@ -51,11 +51,11 @@
     <audio id="teacher-audio"></audio>
 
     <script>
-      const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyWYwvTPZZhehrjAj7VmMjhHmI4674aiR9Dkv4YNZcvTdp_0gQ072WuUqzA-hc6TJGe/exec"; 
+      const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz5TpQcZ_T1rPMaVmXhDyf6FxkLKIC7m1D_El3g_8ym-fMbVCF2M44WvVhFhU6ZoIP0/exec"; 
 
 const phonograms = [
     { letters: "sh", type: "sound", target: "/sh/" },
-    { letters: "qu", type: "rule", target: "kw and the rule: q always needs a u; u is not a vowel here" },
+    { letters: "qu", type: "rule", target: "kw and the rule: Always write a q with a u" },
     { letters: "ti", type: "rule", target: "/sh/ and the rule: tall /sh/ must be followed by a vowel" },
     { letters: "ir", type: "sound", target: "/er/ for first" }
 ];
@@ -132,14 +132,19 @@ mainBtn.addEventListener('click', async () => {
             }
 
             // RECORDER
-            mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
-            audioChunks = [];
-            
-            mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-            mediaRecorder.onstop = () => {
-                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                processAudio(audioBlob);
-            };
+          mediaRecorder.onstop = () => {
+    cancelAnimationFrame(animationId);
+    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+    
+    // Check if the recording is actually long enough (under 1KB is usually silence)
+    if (audioBlob.size < 2000) { 
+        statusMsg.innerText = "Too short! Speak a bit louder.";
+        resetButton();
+        return;
+    }
+    
+    processAudio(audioBlob);
+};
 
             mediaRecorder.start();
 
@@ -199,6 +204,8 @@ async function processAudio(blob) {
 });
             
             const rawResult = await response.text();
+            const rawResult = await response.text();
+document.getElementById('debug-log').innerText = "AI Response: " + rawResult; // Add this line
             // We only care about the word "CORRECT" being in the response
             const isCorrect = rawResult.toUpperCase().includes("CORRECT");
             
