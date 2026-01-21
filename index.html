@@ -66,7 +66,8 @@
         let mediaRecorder;
         let audioChunks = [];
         let audioContext, analyser, dataArray, animationId;
-
+        let isCoolingDown = false; // New: prevents rapid-fire clicks
+        
         const mainBtn = document.getElementById('main-btn');
         const statusMsg = document.getElementById('status-msg');
         const cardLetters = document.getElementById('card-letters');
@@ -85,6 +86,10 @@
         }
 
        mainBtn.addEventListener('click', async () => {
+           if (isCoolingDown) {
+        statusMsg.innerText = "Wait a moment...";
+        return;
+    }
     if (!mediaRecorder || mediaRecorder.state === "inactive") {
         try {
             // 1. Get the raw audio stream from the mic
@@ -94,6 +99,13 @@
             const options = { 
                 mimeType: 'audio/webm;codecs=opus', 
                 audioBitsPerSecond: 128000 
+                } else {
+        mediaRecorder.stop();
+        isCoolingDown = true; // LOCK the button
+        mainBtn.innerText = "PROCESSING...";
+        mainBtn.classList.replace('bg-red-500', 'bg-gray-400'); // Turn gray
+    }
+});
             };
                     
                     // Setup Visualizer
@@ -189,12 +201,14 @@ mediaRecorder.onstop = () => {
             document.getElementById('debug-log').innerText = `AI HEARD: ${reason}`;
 
             handleVerdict(verdict === "CORRECT");
-        } catch (e) {
-    if (e.message.includes("429")) {
-        statusMsg.innerText = "Teacher is taking a breath! Try in 1 minute.";
+  } catch (e) {
+    console.log("Error details:", e);
+    if (e.toString().includes("429") || e.toString().includes("Resource exhausted")) {
+        statusMsg.innerText = "Teacher is busy! Wait 1 minute.";
     } else {
-        statusMsg.innerText = "Connection Error";
+        statusMsg.innerText = "Connection Error. Try again?";
     }
+    updateCard();
     resetButton();
 }
     };
@@ -241,10 +255,14 @@ mediaRecorder.onstop = () => {
         }
 
         function resetButton() {
-            mainBtn.innerText = "PUSH TO SPEAK";
-            mainBtn.classList.remove('bg-yellow-500', 'bg-red-500');
-            mainBtn.classList.add('bg-purple-600');
-        }
+    // Add a 3-second "breath" before allowing another attempt
+    setTimeout(() => {
+        isCoolingDown = false; 
+        mainBtn.innerText = "PUSH TO SPEAK";
+        mainBtn.classList.remove('bg-yellow-500', 'bg-red-500', 'bg-gray-400');
+        mainBtn.classList.add('bg-purple-600');
+    }, 3000); // 3000ms = 3 seconds
+}
 
         function playDing() {
             const ctx = new AudioContext();
