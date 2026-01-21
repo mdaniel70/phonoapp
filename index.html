@@ -92,30 +92,70 @@
         mainBtn.addEventListener('click', async () => {
             if (isCoolingDown) return;
             if (!mediaRecorder || mediaRecorder.state === "inactive") {
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+               try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ 
+                        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } 
+                    });
+
                     const options = { mimeType: 'audio/webm;codecs=opus' };
                     mediaRecorder = new MediaRecorder(stream, options);
                     
+                    // --- RECONNECTING THE VISUALIZER ---
                     if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    if (audioContext.state === 'suspended') await audioContext.resume();
+
                     analyser = audioContext.createAnalyser();
+                    analyser.fftSize = 64; 
                     source = audioContext.createMediaStreamSource(stream);
                     source.connect(analyser);
                     dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+                    const container = document.getElementById('visualizer-container');
+                    container.innerHTML = ''; // Clear old bars
+                    const barElements = [];
+                    for (let i = 0; i < 16; i++) {
+                        const bar = document.createElement('div');
+                        bar.style.width = '10px'; bar.style.height = '4px'; bar.style.backgroundColor = '#9333ea';
+                        bar.style.borderRadius = '5px'; bar.style.margin = '0 2px';
+                        bar.style.transition = 'height 0.1s ease'; // Makes them smooth
+                        container.appendChild(bar);
+                        barElements.push(bar);
+                    }
 
                     audioChunks = [];
                     mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
                     mediaRecorder.onstop = () => {
                         cancelAnimationFrame(animationId);
+                        // Reset bars to flat when stopped
+                        barElements.forEach(b => b.style.height = '4px');
                         const audioBlob = new Blob(audioChunks, { type: 'audio/webm;codecs=opus' });
                         processAudio(audioBlob);
                     };
 
                     mediaRecorder.start(100);
+
+                    // --- THE ANIMATION LOOP ---
+                    function animate() {
+                        if (mediaRecorder && mediaRecorder.state === "recording") {
+                            analyser.getByteFrequencyData(dataArray);
+                            for (let i = 0; i < barElements.length; i++) {
+                                const val = dataArray[i * 2] || 0; 
+                                const h = (val / 255) * 60; 
+                                barElements[i].style.height = Math.max(4, h) + "px";
+                            }
+                            animationId = requestAnimationFrame(animate);
+                        }
+                    }
+                    animate();
+
                     mainBtn.innerText = "STOP";
                     mainBtn.classList.replace('bg-purple-600', 'bg-red-500');
                     statusMsg.innerText = "Listening...";
-                } catch (err) { statusMsg.innerText = "Check mic permissions!"; }
+
+                } catch (err) {
+                    console.error(err);
+                    statusMsg.innerText = "Check mic permissions!";
+                }
             } else {
                 mediaRecorder.stop();
                 isCoolingDown = true;
