@@ -86,13 +86,25 @@
         }
 
         mainBtn.addEventListener('click', async () => {
-            if (isCoolingDown) return;
+    // FORCE RESET if stuck
+    if (mediaRecorder && mediaRecorder.state === "inactive") {
+        mediaRecorder = null; 
+    }
 
-            if (!mediaRecorder || mediaRecorder.state === "inactive") {
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    
-                    const options = { mimeType: 'audio/webm;codecs=opus' };
+    if (isCoolingDown) return;
+
+    if (!mediaRecorder) { // Simplified check
+        try {
+            console.log("Attempting to start mic..."); // Open your browser console (F12) to see this
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            
+            // Check if browser supports the specific codec
+            const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
+                             ? 'audio/webm;codecs=opus' 
+                             : 'audio/webm';
+
+            mediaRecorder = new MediaRecorder(stream, { mimeType });
+            console.log("Recorder started using:", mimeType);
                     mediaRecorder = new MediaRecorder(stream, options);
 
                     // Setup Visualizer
