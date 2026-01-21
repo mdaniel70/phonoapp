@@ -67,8 +67,6 @@
         let audioChunks = [];
         let isCoolingDown = false; 
         let animationId;
-
-        // Visualizer Globals
         let audioContext = null;
         let analyser = null;
         let dataArray = null;
@@ -86,7 +84,6 @@
             cardLetters.innerText = current.letters;
             cardLetters.style.display = 'block';
             cardLoader.style.display = 'none';
-            
             const msg = current.type === "rule" ? "Say the sound and the rule!" : "Say the sound!";
             statusMsg.innerText = msg;
             statusMsg.className = "mt-4 text-gray-500 font-medium uppercase tracking-widest text-sm text-center px-4";
@@ -124,31 +121,20 @@
                         barElements.push(bar);
                     }
 
-                    mediaRecorder = new MediaRecorder(stream, options);
-            audioChunks = [];
+                    audioChunks = [];
+                    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+                    mediaRecorder.onstop = () => {
+                        cancelAnimationFrame(animationId);
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm;codecs=opus' });
+                        if (audioBlob.size < 100) { 
+                            statusMsg.innerText = "Mic didn't capture sound!";
+                            resetButton();
+                            return;
+                        }
+                        processAudio(audioBlob);
+                    };
 
-            mediaRecorder.ondataavailable = e => {
-                if (e.data.size > 0) audioChunks.push(e.data);
-            };
-
-            mediaRecorder.onstop = () => {
-                cancelAnimationFrame(animationId);
-                const audioBlob = new Blob(audioChunks, { type: 'audio/webm;codecs=opus' });
-                
-                console.log("Final Blob size:", audioBlob.size);
-
-                // We lowered this threshold to 100 so it doesn't block you
-                if (audioBlob.size < 100) { 
-                    statusMsg.innerText = "Mic didn't capture sound. Try again!";
-                    resetButton();
-                    return;
-                }
-                processAudio(audioBlob);
-            };
-
-            mediaRecorder.start(100); // Collect data every 100ms
-            animate();
-
+                    mediaRecorder.start(100);
                     function animate() {
                         if (mediaRecorder && mediaRecorder.state === "recording") {
                             analyser.getByteFrequencyData(dataArray);
@@ -177,58 +163,48 @@
             }
         });
 
-      async function processAudio(blob) {
-    cardLetters.style.display = 'none';
-    cardLoader.style.display = 'block';
-    
-    const reader = new FileReader();
-    reader.readAsDataURL(blob);
-    reader.onloadend = async () => {
-        const base64Audio = reader.result.split(',')[1];
-        
-        const payload = {
-            phonogram: phonograms[currentIndex].letters,
-            type: phonograms[currentIndex].type,
-            target: phonograms[currentIndex].target,
-            audio: base64Audio
-        };
+        async function processAudio(blob) {
+            cardLetters.style.display = 'none';
+            cardLoader.style.display = 'block';
+            const reader = new FileReader();
+            reader.readAsDataURL(blob);
+            reader.onloadend = async () => {
+                const base64Audio = reader.result.split(',')[1];
+                const payload = {
+                    phonogram: phonograms[currentIndex].letters,
+                    type: phonograms[currentIndex].type,
+                    target: phonograms[currentIndex].target,
+                    audio: base64Audio
+                };
 
-       try {
-            const response = await fetch(APPS_SCRIPT_URL, {
-                method: "POST",
-                headers: { "Content-Type": "text/plain;charset=utf-8" }, 
-                body: JSON.stringify(payload)
-            });
+                try {
+                    const response = await fetch(APPS_SCRIPT_URL, {
+                        method: "POST",
+                        headers: { "Content-Type": "text/plain;charset=utf-8" }, 
+                        body: JSON.stringify(payload)
+                    });
 
-            const rawResult = await response.text();
-            const json = JSON.parse(rawResult);
-            
-            if (json.candidates && json.candidates[0].content.parts[0].text) {
-                const aiText = json.candidates[0].content.parts[0].text;
-                
-                // --- THE POWER WASH ---
-                // 1. Get the part before the "|"
-                const firstPart = aiText.split('|')[0].toUpperCase();
-                
-                // 2. Check if the word "CORRECT" is inside that first part
-                // This prevents "INCORRECT" from matching because we check for 
-                // the specific word "CORRECT" and ensure it's not "INCORRECT"
-                const isCorrect = firstPart.includes("CORRECT") && !firstPart.includes("INCORRECT");
+                    const rawResult = await response.text();
+                    const json = JSON.parse(rawResult);
+                    
+                    if (json.candidates && json.candidates[0].content.parts[0].text) {
+                        const aiText = json.candidates[0].content.parts[0].text;
+                        const firstPart = aiText.split('|')[0].toUpperCase();
+                        const isCorrect = firstPart.includes("CORRECT") && !firstPart.includes("INCORRECT");
 
-                document.getElementById('debug-log').innerText = "AI THOUGHT: " + aiText;
-                
-                console.log("Is it correct?", isCorrect, "First Part was:", aiText.split('|')[0]);Send the result to the visual handler
-                handleVerdict(isCorrect);
-            }
-
-        } catch (e) {
-            console.error("Logic Error:", e);
-            statusMsg.innerText = "Connection Error";
-            resetButton();
+                        document.getElementById('debug-log').innerText = "AI THOUGHT: " + aiText;
+                        handleVerdict(isCorrect);
+                    }
+                } catch (e) {
+                    statusMsg.innerText = "Connection Error";
+                    resetButton();
+                }
+            };
         }
 
         function handleVerdict(isCorrect) {
             cardLoader.style.display = 'none';
+            cardLetters.style.display = 'block';
             if (isCorrect) {
                 statusMsg.innerText = "YES! YOU ARE CORRECT!";
                 statusMsg.className = "mt-4 text-green-600 font-bold uppercase tracking-widest text-sm text-center px-4";
