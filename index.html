@@ -177,7 +177,7 @@
             }
         });
 
-       async function processAudio(blob) {
+      async function processAudio(blob) {
     cardLetters.style.display = 'none';
     cardLoader.style.display = 'block';
     
@@ -194,35 +194,33 @@
         };
 
         try {
-            // THE FIX: We send as text/plain to avoid the "Pre-flight" security check
             const response = await fetch(APPS_SCRIPT_URL, {
                 method: "POST",
-                body: JSON.stringify(payload),
-                headers: {
-                    "Content-Type": "text/plain;charset=utf-8"
-                }
+                headers: { "Content-Type": "text/plain;charset=utf-8" }, 
+                body: JSON.stringify(payload)
             });
 
             const rawResult = await response.text();
-            console.log("Raw Response:", rawResult);
-
             const json = JSON.parse(rawResult);
             
-            // Extract the text from the Gemini JSON structure
             if (json.candidates && json.candidates[0].content.parts[0].text) {
                 const aiText = json.candidates[0].content.parts[0].text;
-                const isCorrect = aiText.toUpperCase().includes("CORRECT");
+                
+                // --- THE BETTER GRADING LOGIC ---
+                // We split the result at the "|" symbol to get just the first word
+                const verdictPart = aiText.split('|')[0].trim().toUpperCase();
+                
+                // Only mark correct if it specifically matches "CORRECT" 
+                // and NOT "INCORRECT"
+                const isCorrect = (verdictPart === "CORRECT");
+
                 document.getElementById('debug-log').innerText = "AI THOUGHT: " + aiText;
                 handleVerdict(isCorrect);
-            } else {
-                throw new Error("Invalid AI Response Format");
             }
 
         } catch (e) {
-            console.error("Connection Detailed Error:", e);
-            statusMsg.innerText = "Connection Error. Check Console (F12).";
-            cardLoader.style.display = 'none';
-            cardLetters.style.display = 'block';
+            console.error("Error:", e);
+            statusMsg.innerText = "Connection Error";
             resetButton();
         }
     };
