@@ -190,10 +190,13 @@ mediaRecorder.onstop = () => {
 
             handleVerdict(verdict === "CORRECT");
         } catch (e) {
-            statusMsg.innerText = "Connection Error";
-            updateCard();
-            resetButton();
-        }
+    if (e.message.includes("429")) {
+        statusMsg.innerText = "Teacher is taking a breath! Try in 1 minute.";
+    } else {
+        statusMsg.innerText = "Connection Error";
+    }
+    resetButton();
+}
     };
         }
 
