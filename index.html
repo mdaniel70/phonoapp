@@ -51,7 +51,7 @@
     <audio id="teacher-audio"></audio>
 
     <script>
-        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz5TpQcZ_T1rPMaVmXhDyf6FxkLKIC7m1D_El3g_8ym-fMbVCF2M44WvVhFhU6ZoIP0/exec"; 
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx-FoMYfeJcf9i4URffmWz01zYa2qFkkVAigTiNFHLRdKA1b0Oeo2Y19NDggHXrJFiD/exec"; 
 
         const phonograms = [
             { letters: "sh", type: "sound", target: "/sh/" },
@@ -194,36 +194,31 @@
         };
 
         try {
-            // We use 'text/plain' to avoid CORS pre-flight checks that often fail in Apps Script
             const response = await fetch(APPS_SCRIPT_URL, {
                 method: "POST",
-                mode: "no-cors", // This is the "Magic" setting for Apps Script
+                // Using text/plain is a 'trick' to avoid CORS pre-flight errors
                 headers: { "Content-Type": "text/plain" }, 
                 body: JSON.stringify(payload)
             });
 
-            // IMPORTANT: 'no-cors' mode won't let us read the response text directly 
-            // but the script WILL execute. To read the AI result, we usually need 
-            // the Standard mode. Let's try the standard way first with a fix:
-            
-            const standardResponse = await fetch(APPS_SCRIPT_URL, {
-                method: "POST",
-                body: JSON.stringify(payload)
-            });
+            if (!response.ok) throw new Error('Network response was not ok');
 
-            const rawResult = await standardResponse.text();
+            const rawResult = await response.text();
             console.log("AI Response:", rawResult);
             
+            // Try to parse the result as JSON
             const json = JSON.parse(rawResult);
             const aiText = json.candidates[0].content.parts[0].text;
+            
+            // Logic for grading
             const isCorrect = aiText.toUpperCase().includes("CORRECT");
 
             document.getElementById('debug-log').innerText = "AI THOUGHT: " + aiText;
             handleVerdict(isCorrect);
 
         } catch (e) {
-            console.error("Fetch Error:", e);
-            statusMsg.innerText = "Connection Error - Check Script Deployment";
+            console.error("Detailed Error:", e);
+            statusMsg.innerText = "Connection Error - Please check console (F12)";
             cardLoader.style.display = 'none';
             cardLetters.style.display = 'block';
             resetButton();
