@@ -188,13 +188,24 @@
                     const json = JSON.parse(rawResult);
                     
                     if (json.candidates && json.candidates[0].content.parts[0].text) {
-                        const aiText = json.candidates[0].content.parts[0].text;
-                        const firstPart = aiText.split('|')[0].toUpperCase();
-                        const isCorrect = firstPart.includes("CORRECT") && !firstPart.includes("INCORRECT");
+                const aiText = json.candidates[0].content.parts[0].text;
+                
+                // --- THE UNIVERSAL MATCHER ---
+                // We grab the first part before the "|" symbol
+                const verdictPart = aiText.split('|')[0].toUpperCase();
+                
+                // This checks if the word CORRECT exists but INCORRECT does NOT
+                // It handles things like "**CORRECT**", "CORRECT ", and "Verdict: CORRECT"
+                const isCorrect = verdictPart.includes("CORRECT") && !verdictPart.includes("INCORRECT");
 
-                        document.getElementById('debug-log').innerText = "AI THOUGHT: " + aiText;
-                        handleVerdict(isCorrect);
-                    }
+                document.getElementById('debug-log').innerText = "AI THOUGHT: " + aiText;
+                
+                // FOR DEBUGGING: Let's see what the code "thinks"
+                console.log("Verdict Part:", verdictPart);
+                console.log("Is Correct Decision:", isCorrect);
+
+                handleVerdict(isCorrect);
+            }
                 } catch (e) {
                     statusMsg.innerText = "Connection Error";
                     resetButton();
@@ -205,7 +216,7 @@
         function handleVerdict(isCorrect) {
             cardLoader.style.display = 'none';
             cardLetters.style.display = 'block';
-            if (isCorrect) {
+            if (isCorrect === true) {
                 statusMsg.innerText = "YES! YOU ARE CORRECT!";
                 statusMsg.className = "mt-4 text-green-600 font-bold uppercase tracking-widest text-sm text-center px-4";
                 playDing();
