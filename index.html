@@ -51,13 +51,13 @@
     <audio id="teacher-audio"></audio>
 
     <script>
-      const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxyi9-gW9Qpjx7beTjc61WHUn3tzGRZzg9kPemyoKe8hRZsmPxdc4siaA4BlQ2OvPS6/exec"; 
+      const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyWYwvTPZZhehrjAj7VmMjhHmI4674aiR9Dkv4YNZcvTdp_0gQ072WuUqzA-hc6TJGe/exec"; 
 
 const phonograms = [
-    { letters: "sh", sounds: ["sh"] },
-    { letters: "ch", sounds: ["ch", "k", "sh"] },
-    { letters: "ir", sounds: ["er"] },
-    { letters: "th", sounds: ["th"] }
+    { letters: "sh", type: "sound", target: "/sh/" },
+    { letters: "qu", type: "rule", target: "kw and the rule: q always needs a u; u is not a vowel here" },
+    { letters: "ti", type: "rule", target: "/sh/ and the rule: tall /sh/ must be followed by a vowel" },
+    { letters: "ir", type: "sound", target: "/er/ for first" }
 ];
 
 let currentIndex = 0;
@@ -81,9 +81,13 @@ const cardLoader = document.getElementById('card-loader');
 window.addEventListener('load', () => { updateCard(); });
 
 function updateCard() {
-    cardLetters.innerText = phonograms[currentIndex].letters;
-    cardLetters.style.display = 'block';
-    cardLoader.style.display = 'none';
+    const current = phonograms[currentIndex];
+    cardLetters.innerText = current.letters;
+    
+    // Show a small hint so the student knows if they need to say a rule
+    const msg = current.type === "rule" ? "Say the sound and the rule!" : "Say the sound!";
+    statusMsg.innerText = msg;
+    statusMsg.classList.remove('text-green-600', 'text-red-500');
 }
 
 mainBtn.addEventListener('click', async () => {
@@ -180,11 +184,19 @@ async function processAudio(blob) {
     reader.onloadend = async () => {
         const base64Audio = reader.result.split(',')[1];
         try {
-            const response = await fetch(APPS_SCRIPT_URL, {
-                method: "POST",
-                body: JSON.stringify({ phonogram: phonograms[currentIndex].letters, audio: base64Audio }),
-                redirect: "follow"
-            });
+            
+           const currentPhono = phonograms[currentIndex];
+
+          const response = await fetch(APPS_SCRIPT_URL, {
+          method: "POST",
+          body: JSON.stringify({ 
+          phonogram: currentPhono.letters, 
+          type: currentPhono.type, 
+          target: currentPhono.target,
+          audio: base64Audio 
+    }),
+    redirect: "follow"
+});
             
             const rawResult = await response.text();
             // We only care about the word "CORRECT" being in the response
