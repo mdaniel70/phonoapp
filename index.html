@@ -58,7 +58,7 @@
             { letters: "sh", sounds: ["sh"] },
             { letters: "ch", sounds: ["ch", "k", "sh"] },
             { letters: "ir", sounds: ["er"] },
-            { letters: "th", sounds: ["th", "th"] }
+            { letters: "th", sounds: ["th"] }
         ];
 
         let currentIndex = 0;
@@ -74,34 +74,33 @@
         const cardLetters = document.getElementById('card-letters');
         const cardLoader = document.getElementById('card-loader');
 
+        // Initial Load - This puts the first letters on the card
         window.addEventListener('load', () => {
+            console.log("Page loaded. Initializing card...");
             updateCard();
             statusMsg.innerText = "Ready for your sounds";
         });
 
         function updateCard() {
-            cardLetters.innerText = phonograms[currentIndex].letters;
-            cardLetters.style.display = 'block';
-            cardLoader.style.display = 'none';
+            if (phonograms[currentIndex]) {
+                cardLetters.innerText = phonograms[currentIndex].letters;
+                cardLetters.style.display = 'block';
+                cardLoader.style.display = 'none';
+                console.log("Card updated to:", phonograms[currentIndex].letters);
+            } else {
+                console.error("Error: Phonogram at index " + currentIndex + " not found.");
+            }
         }
 
         mainBtn.addEventListener('click', async () => {
-            console.log("Button clicked. State:", mediaRecorder ? mediaRecorder.state : "no recorder");
-            
             if (isCoolingDown) return;
 
-            // IF INACTIVE OR NULL, START RECORDING
             if (!mediaRecorder || mediaRecorder.state === "inactive") {
                 try {
-                    console.log("Requesting microphone...");
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    
-                    // Setup Recorder Options
                     const options = { mimeType: 'audio/webm;codecs=opus' };
                     mediaRecorder = new MediaRecorder(stream, options);
-                    console.log("MediaRecorder created.");
 
-                    // Setup Visualizer
                     if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
                     if (audioContext.state === 'suspended') await audioContext.resume();
                     
@@ -136,7 +135,6 @@
                     audioChunks = [];
                     mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
                     mediaRecorder.onstop = () => {
-                        console.log("Recording stopped. Processing...");
                         cancelAnimationFrame(animationId);
                         const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                         if (audioBlob.size < 500) {
@@ -148,18 +146,15 @@
                     };
 
                     mediaRecorder.start();
-                    console.log("MediaRecorder started.");
                     mainBtn.innerText = "STOP";
                     mainBtn.classList.replace('bg-purple-600', 'bg-red-500');
                     statusMsg.innerText = "Listening...";
 
                 } catch (err) {
-                    console.error("Mic Error:", err);
-                    statusMsg.innerText = "Mic access denied or error.";
+                    console.error("Mic Access Error:", err);
+                    statusMsg.innerText = "Mic access denied";
                 }
-            } 
-            // IF RECORDING, STOP IT
-            else if (mediaRecorder.state === "recording") {
+            } else {
                 mediaRecorder.stop();
                 isCoolingDown = true;
                 mainBtn.innerText = "PROCESSING...";
@@ -185,8 +180,6 @@
                         redirect: "follow"
                     });
                     const rawResult = await response.text();
-                    console.log("Apps Script Response:", rawResult);
-                    
                     const parts = rawResult.split('|');
                     const verdict = parts[0].trim().toUpperCase();
                     const reason = parts[1] ? parts[1].trim() : "No reason provided";
@@ -194,7 +187,6 @@
                     document.getElementById('debug-log').innerText = `AI HEARD: ${reason}`;
                     handleVerdict(verdict === "CORRECT");
                 } catch (e) {
-                    console.error("Fetch Error:", e);
                     statusMsg.innerText = "Connection Error";
                     resetButton();
                 }
@@ -229,7 +221,7 @@
         function playTeacherAudio() {
             const audio = document.getElementById('teacher-audio');
             audio.src = `audio/${phonograms[currentIndex].letters}.mp3`;
-            audio.play().catch(() => console.log("Audio file missing"));
+            audio.play().catch(() => console.log("Audio missing"));
         }
 
         function moveToNextCard() {
@@ -266,3 +258,6 @@
             s.innerText = "🍦"; 
             document.getElementById('sticker-shelf').appendChild(s);
         }
+        </script>
+</body>
+</html>
