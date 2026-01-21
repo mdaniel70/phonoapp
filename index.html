@@ -124,20 +124,30 @@
                         barElements.push(bar);
                     }
 
-                    audioChunks = [];
-                    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-                    mediaRecorder.onstop = () => {
-                        cancelAnimationFrame(animationId);
-                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                        if (audioBlob.size < 2000) { 
-                            statusMsg.innerText = "Too short! Speak louder.";
-                            resetButton();
-                            return;
-                        }
-                        processAudio(audioBlob);
-                    };
+                    mediaRecorder = new MediaRecorder(stream, options);
+            audioChunks = [];
 
-                    mediaRecorder.start();
+            mediaRecorder.ondataavailable = e => {
+                if (e.data.size > 0) audioChunks.push(e.data);
+            };
+
+            mediaRecorder.onstop = () => {
+                cancelAnimationFrame(animationId);
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm;codecs=opus' });
+                
+                console.log("Final Blob size:", audioBlob.size);
+
+                // We lowered this threshold to 100 so it doesn't block you
+                if (audioBlob.size < 100) { 
+                    statusMsg.innerText = "Mic didn't capture sound. Try again!";
+                    resetButton();
+                    return;
+                }
+                processAudio(audioBlob);
+            };
+
+            mediaRecorder.start(100); // Collect data every 100ms
+            animate();
 
                     function animate() {
                         if (mediaRecorder && mediaRecorder.state === "recording") {
