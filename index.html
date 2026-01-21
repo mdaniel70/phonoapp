@@ -53,6 +53,9 @@
     <script>
         const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxzUUoRDJUvh5titkwtQk1mid_sBfTkCaQfxoIbeT3NPXmjVLksvp76EQimRhF4IFa9/exec"; 
 
+     <script>
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxzUUoRDJUvh5titkwtQk1mid_sBfTkCaQfxoIbeT3NPXmjVLksvp76EQimRhF4IFa9/exec"; 
+
         const phonograms = [
             { letters: "sh", type: "sound", target: "/sh/" },
             { letters: "qu", type: "rule", target: "kw and the rule: Always write a q with a u" },
@@ -91,70 +94,31 @@
 
         mainBtn.addEventListener('click', async () => {
             if (isCoolingDown) return;
-
             if (!mediaRecorder || mediaRecorder.state === "inactive") {
                 try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ 
-                        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } 
-                    });
-
-                    const options = { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 128000 };
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    const options = { mimeType: 'audio/webm;codecs=opus' };
                     mediaRecorder = new MediaRecorder(stream, options);
                     
                     if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                    if (audioContext.state === 'suspended') await audioContext.resume();
-
                     analyser = audioContext.createAnalyser();
-                    analyser.fftSize = 64; 
                     source = audioContext.createMediaStreamSource(stream);
                     source.connect(analyser);
                     dataArray = new Uint8Array(analyser.frequencyBinCount);
-
-                    const container = document.getElementById('visualizer-container');
-                    container.innerHTML = '';
-                    const barElements = [];
-                    for (let i = 0; i < 16; i++) {
-                        const bar = document.createElement('div');
-                        bar.style.width = '10px'; bar.style.height = '4px'; bar.style.backgroundColor = '#9333ea';
-                        bar.style.borderRadius = '5px'; bar.style.margin = '0 2px';
-                        container.appendChild(bar);
-                        barElements.push(bar);
-                    }
 
                     audioChunks = [];
                     mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
                     mediaRecorder.onstop = () => {
                         cancelAnimationFrame(animationId);
                         const audioBlob = new Blob(audioChunks, { type: 'audio/webm;codecs=opus' });
-                        if (audioBlob.size < 100) { 
-                            statusMsg.innerText = "Mic didn't capture sound!";
-                            resetButton();
-                            return;
-                        }
                         processAudio(audioBlob);
                     };
 
                     mediaRecorder.start(100);
-                    function animate() {
-                        if (mediaRecorder && mediaRecorder.state === "recording") {
-                            analyser.getByteFrequencyData(dataArray);
-                            for (let i = 0; i < barElements.length; i++) {
-                                const val = dataArray[i * 2] || 0; 
-                                const h = (val / 255) * 60; 
-                                barElements[i].style.height = Math.max(4, h) + "px";
-                            }
-                            animationId = requestAnimationFrame(animate);
-                        }
-                    }
-                    animate();
-
                     mainBtn.innerText = "STOP";
                     mainBtn.classList.replace('bg-purple-600', 'bg-red-500');
                     statusMsg.innerText = "Listening...";
-
-                } catch (err) {
-                    statusMsg.innerText = "Check mic permissions!";
-                }
+                } catch (err) { statusMsg.innerText = "Check mic permissions!"; }
             } else {
                 mediaRecorder.stop();
                 isCoolingDown = true;
@@ -186,26 +150,15 @@
 
                     const rawResult = await response.text();
                     const json = JSON.parse(rawResult);
+                    const aiText = json.candidates[0].content.parts[0].text;
                     
-                    if (json.candidates && json.candidates[0].content.parts[0].text) {
-                const aiText = json.candidates[0].content.parts[0].text;
-                
-                // --- THE UNIVERSAL MATCHER ---
-                // We grab the first part before the "|" symbol
-                const verdictPart = aiText.split('|')[0].toUpperCase();
-                
-                // This checks if the word CORRECT exists but INCORRECT does NOT
-                // It handles things like "**CORRECT**", "CORRECT ", and "Verdict: CORRECT"
-                const isCorrect = verdictPart.includes("CORRECT") && !verdictPart.includes("INCORRECT");
+                    // CLEAR LOGIC: Look for CORRECT but not INCORRECT in the whole response
+                    const isCorrect = aiText.toUpperCase().includes("CORRECT") && !aiText.toUpperCase().includes("INCORRECT");
 
-                document.getElementById('debug-log').innerText = "AI THOUGHT: " + aiText;
-                
-                // FOR DEBUGGING: Let's see what the code "thinks"
-                console.log("Verdict Part:", verdictPart);
-                console.log("Is Correct Decision:", isCorrect);
-
-                handleVerdict(isCorrect);
-            }
+                    document.getElementById('debug-log').innerText = "AI THOUGHT: " + aiText;
+                    
+                    // TRIGGER VERDICT
+                    handleVerdict(isCorrect);
                 } catch (e) {
                     statusMsg.innerText = "Connection Error";
                     resetButton();
@@ -213,10 +166,13 @@
             };
         }
 
+        // MOVED OUTSIDE OF PROCESSAUDIO TO ENSURE GLOBAL ACCESS
         function handleVerdict(isCorrect) {
             cardLoader.style.display = 'none';
             cardLetters.style.display = 'block';
-            if (isCorrect === true) {
+            
+            if (isCorrect) {
+                attempts = 0; // Reset attempts on success
                 statusMsg.innerText = "YES! YOU ARE CORRECT!";
                 statusMsg.className = "mt-4 text-green-600 font-bold uppercase tracking-widest text-sm text-center px-4";
                 playDing();
@@ -225,16 +181,17 @@
             } else {
                 attempts++;
                 statusMsg.className = "mt-4 text-red-500 font-bold uppercase tracking-widest text-sm text-center px-4";
+                
                 if (attempts >= 2) {
                     statusMsg.innerText = "Let's go to the next one.";
                     attempts = 0; 
-                    setTimeout(moveToNextCard, 4000);
+                    setTimeout(moveToNextCard, 3000);
                 } else {
                     statusMsg.innerText = "Try one more time!";
                     setTimeout(() => {
                         updateCard();
                         resetButton();
-                    }, 3000);
+                    }, 2500);
                 }
             }
         }
@@ -270,6 +227,7 @@
             s.innerText = "🍦"; 
             document.getElementById('sticker-shelf').appendChild(s);
         }
+
     </script>
 </body>
 </html>
