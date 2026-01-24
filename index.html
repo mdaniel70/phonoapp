@@ -125,7 +125,15 @@
             { letters: "ti", type: "rule", target: "/sh/ and the rule: tall /sh/ must be followed by a vowel", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ti.mp3" },
             { letters: "ir", type: "rule", target: "/er/ for first and the rule: /er/ for first. Her first purple worm learns", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ir.mp3" }
         ];
+        let sessionPhonograms = []; // This will hold our random 20
+        let score = 0;
+        let cardsProcessed = 0;
+        const SESSION_LIMIT = 20; 
 
+        // Add this shuffle function to keep things random
+        function shuffle(array) {
+            return array.sort(() => Math.random() - 0.5);
+        }
         let currentIndex = 0;
         let stickers = 0;
         let attempts = 0;
@@ -143,10 +151,15 @@
         const cardLetters = document.getElementById('card-letters');
         const cardLoader = document.getElementById('card-loader');
 
-        window.addEventListener('load', () => { updateCard(); });
+        window.addEventListener('load', () => { 
+            // Shuffle and pick the first 20 (or all if you have fewer than 20)
+            sessionPhonograms = shuffle([...phonograms]).slice(0, SESSION_LIMIT);
+            updateCard(); 
+        });
 
-        function updateCard() {
-            const current = phonograms[currentIndex];
+       
+            function updateCard() {
+            const current = sessionPhonograms[currentIndex]; // Use the random list
             cardLetters.innerText = current.letters;
             cardLetters.style.display = 'block';
             cardLoader.style.display = 'none';
@@ -265,20 +278,20 @@
             cardLetters.style.display = 'block';
             
             if (isCorrect) {
-                // SUCCESS LOGIC
-                statusMsg.innerText = "YES! YOU ARE CORRECT!";
-                statusMsg.className = "mt-4 text-green-600 font-bold uppercase tracking-widest text-sm text-center px-4";
-                
-                // ONLY play your Success Chord if it's the first try (attempts is 0)
-                if (attempts === 0) {
-                    playSuccessChord();
-                } else {
-                    playDing(); // Play the regular beep if they got it on try 2 or 3
-                }
-                
-                addSticker();
-                attempts = 0; 
-                setTimeout(moveToNextCard, 2000);
+            statusMsg.innerText = "YES! YOU ARE CORRECT!";
+            statusMsg.className = "mt-4 text-green-600 font-bold uppercase tracking-widest text-sm text-center px-4";
+            
+            if (attempts === 0) {
+                score++; // POINT EARNED!
+                playSuccessChord();
+            } else {
+                playDing(); // No point for the score, but they still pass the card
+            }
+            
+            addSticker();
+            attempts = 0; 
+            setTimeout(moveToNextCard, 2000);
+        }
             } else {
                 // FAILURE LOGIC
                 attempts++;
@@ -301,17 +314,27 @@
             }
         }
 
-        function moveToNextCard() {
-            currentIndex = (currentIndex + 1) % phonograms.length;
-            updateCard();
-            resetButton();
+       function moveToNextCard() {
+            cardsProcessed++;
+            
+            if (cardsProcessed >= sessionPhonograms.length) {
+                showFinalResults();
+            } else {
+                currentIndex++; // Move to the next random card
+                updateCard();
+                resetButton();
+            }
         }
 
-        function resetButton() {
-            isCoolingDown = false;
-            mainBtn.innerText = "PUSH TO SPEAK";
-            mainBtn.classList.remove('bg-gray-400', 'bg-red-500');
-            mainBtn.classList.add('bg-purple-600');
+        function showFinalResults() {
+            // Hide everything and show the score
+            const percent = Math.round((score / sessionPhonograms.length) * 100);
+            cardLetters.innerHTML = `<div class='text-4xl'>Session Complete!</div><div class='text-6xl mt-4'>${score}/${sessionPhonograms.length}</div>`;
+            statusMsg.innerText = `Great job! You got ${percent}% correct on the first try.`;
+            statusMsg.className = "mt-4 text-purple-600 font-bold text-lg text-center px-4";
+            
+            mainBtn.innerText = "START NEW SESSION";
+            mainBtn.onclick = () => location.reload(); // Quickest way to restart
         }
 
         function playDing() {
