@@ -1,3 +1,10 @@
+Here is the complete, assembled Phonogram Lab HTML file.
+
+I have cleaned up the code, integrated the Progress Bar, Randomization (shuffling), Scoring System, High Score memory, and the Full Phonogram List with the AI-optimized target strings we discussed.
+
+You can save this as an .html file and run it immediately.
+
+HTML
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -9,14 +16,28 @@
         .sticker { animation: pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         @keyframes pop { 0% { transform: scale(0); } 100% { transform: scale(1); } }
         .perspective-1000 { perspective: 1000px; }
+        /* Smooth transition for the progress bar */
+        #progress-bar { transition: width 0.5s ease-out; }
     </style>
 </head>
 <body class="bg-blue-50 min-h-screen flex flex-col items-center p-4">
 
-    <div class="w-full max-w-md flex justify-between items-center mb-8">
-        <h1 class="text-2xl font-bold text-purple-800">Phonogram Lab</h1>
-        <div id="sticker-count" class="bg-white px-4 py-2 rounded-full shadow-sm font-bold text-purple-600">
-            ⭐ 0
+    <div class="w-full max-w-md flex flex-col gap-4 mb-8">
+        <div class="flex justify-between items-center">
+            <h1 class="text-2xl font-bold text-purple-800">Phonogram Lab</h1>
+            
+            <div class="flex gap-2">
+                <div id="high-score-display" class="bg-yellow-100 px-3 py-2 rounded-full shadow-sm font-bold text-yellow-700 border border-yellow-200 text-sm flex items-center">
+                    🏆 0%
+                </div>
+                <div id="sticker-count" class="bg-white px-3 py-2 rounded-full shadow-sm font-bold text-purple-600 text-sm flex items-center">
+                    ⭐ 0
+                </div>
+            </div>
+        </div>
+        
+        <div class="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden shadow-inner">
+            <div id="progress-bar" class="bg-purple-600 h-2.5 w-0"></div>
         </div>
     </div>
 
@@ -51,92 +72,94 @@
     <audio id="teacher-audio"></audio>
 
     <script>
+        // --- CONFIGURATION ---
         const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw1w-yxIv2diPqcOOOLobwPjYPS2Dg5k0PrF9oS4pST6owy_WjDqTytb-rOJohUxZTv/exec"; 
+        const SESSION_LIMIT = 20; // How many cards per session?
 
-       const phonograms = [
-           { letters: "a", type: "sound", target: "Three sounds: /ah/ like for at, /ay/ like for ape, and /aw/ like for all", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/a.mp3" },
-           { letters: "e", type: "sound", target: "Two sounds: /eh/ like for egg, and /ee/ like for me", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/e.mp3" },
-           { letters: "i", type: "sound", target: "Two sounds: /ih/ like for it, and /ie/ like for ice", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/i.mp3" },
-           { letters: "o", type: "sound", target: "Three sounds: /ah/ like for on, /oh/ like for open, and /oo/ liek for today", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/o.mp3" },
-           { letters: "u", type: "sound", target: "Three sounds: /uh/ like for up, /ue/ like for use, and /uu/ like for put", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/u.mp3" },
+        // --- PHONOGRAM DATA (Optimized for AI) ---
+        const phonograms = [
+           { letters: "a", type: "sound", target: "Three sounds: /a/ as in cat, /ay/ as in ape, and /ah/ as in ball", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/a.mp3" },
+           { letters: "e", type: "sound", target: "Two sounds: /eh/ as in tent, and /ee/ as in me", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/e.mp3" },
+           { letters: "i", type: "sound", target: "Two sounds: /ih/ as in sit, and /ie/ as in ice", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/i.mp3" },
+           { letters: "o", type: "sound", target: "Three sounds: /ah/ as in hot, /oh/ as in go, and /oo/ as in do", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/o.mp3" },
+           { letters: "u", type: "sound", target: "Three sounds: /uh/ as in up, /ue/ as in unit, and /oo/ as in flute", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/u.mp3" },
            { letters: "y", type: "sound", target: "Four sounds: /yuh/ yet, /ie/ like for my, /ee/ like for baby, and /ih/ like for myth", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/y.mp3" },
            { letters: "b", type: "sound", target: "One sound: /buh/ like for boy", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/b.mp3" },
            { letters: "c", type: "sound", target: "Two sounds: /kuh/ like for cat, and /s/ like for celebrate", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/c.mp3" },
-             { letters: "d", type: "sound", target: "One sound: /duh/ like for dog", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/d.mp3" },
-             { letters: "f", type: "sound", target: "One sound: /fuh/ like for fat", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/f.mp3" },
-             { letters: "g", type: "sound", target: "Two sounds: /guh/ like for go, and /juh/ like for giraffe", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/g.mp3" },
-             { letters: "h", type: "sound", target: "One sound: /huh/ like for hat", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/h.mp3" },
-             { letters: "j", type: "sound", target: "One sound: /juh/ like for jar", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/j.mp3" },
-             { letters: "k", type: "sound", target: "One sound: /kuh/ like for kite", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/k.mp3" },
-             { letters: "l", type: "sound", target: "One sound: /l/ like for like", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/l.mp3" },
-             { letters: "m", type: "sound", target: "One sound: /m/ like for man", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/m.mp3" },
-             { letters: "n", type: "sound", target: "One sound: /n/ like for now", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/n.mp3" },
-             { letters: "p", type: "sound", target: "One sound: /puh/ like for pop", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/p.mp3" },
-             { letters: "r", type: "sound", target: "One sound: /ruh/ like for road", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/r.mp3" },
-             { letters: "s", type: "sound", target: "Two sounds: /s/ like for so, and /z/ like for is", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/s.mp3" },
-            { letters: "t", type: "sound", target: "One sound: /tuh/ like for time", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/t.mp3" },
-            { letters: "v", type: "sound", target: "One sound: /vuh/ like for violin", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/v.mp3" },
-            { letters: "w", type: "sound", target: "One sound: /wuh/ like for will", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/w.mp3" },
-            { letters: "x", type: "sound", target: "One sound: /ks/ like for fox", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/x.mp3" },
-            { letters: "z", type: "sound", target: "One sound: /z/ like for zip", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/z.mp3" },
-            { letters: "er", type: "rule", target: "/er/ for her and the rule: /er/ for her. Her first purple worm learns", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/er.mp3" },
+           { letters: "d", type: "sound", target: "One sound: /duh/ like for dog", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/d.mp3" },
+           { letters: "f", type: "sound", target: "One sound: /fuh/ like for fat", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/f.mp3" },
+           { letters: "g", type: "sound", target: "Two sounds: /guh/ like for go, and /juh/ like for giraffe", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/g.mp3" },
+           { letters: "h", type: "sound", target: "One sound: /huh/ like for hat", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/h.mp3" },
+           { letters: "j", type: "sound", target: "One sound: /juh/ like for jar", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/j.mp3" },
+           { letters: "k", type: "sound", target: "One sound: /kuh/ like for kite", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/k.mp3" },
+           { letters: "l", type: "sound", target: "One sound: /l/ like for like", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/l.mp3" },
+           { letters: "m", type: "sound", target: "One sound: /m/ like for man", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/m.mp3" },
+           { letters: "n", type: "sound", target: "One sound: /n/ like for now", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/n.mp3" },
+           { letters: "p", type: "sound", target: "One sound: /puh/ like for pop", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/p.mp3" },
+           { letters: "r", type: "sound", target: "One sound: /ruh/ like for road", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/r.mp3" },
+           { letters: "s", type: "sound", target: "Two sounds: /s/ like for so, and /z/ like for is", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/s.mp3" },
+           { letters: "t", type: "sound", target: "One sound: /tuh/ like for time", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/t.mp3" },
+           { letters: "v", type: "sound", target: "One sound: /vuh/ like for violin", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/v.mp3" },
+           { letters: "w", type: "sound", target: "One sound: /wuh/ like for will", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/w.mp3" },
+           { letters: "x", type: "sound", target: "One sound: /ks/ like for fox", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/x.mp3" },
+           { letters: "z", type: "sound", target: "One sound: /z/ like for zip", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/z.mp3" },
+           { letters: "er", type: "rule", target: "/er/ for her and the rule: /er/ for her. Her first purple worm learns", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/er.mp3" },
            { letters: "ur", type: "rule", target: "/er/ for purple and the rule: /er/ for purple. Her first purple worm learns", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ur.mp3" },
-           { letters: "wor", type: "rule", target: "/er/  for worm and the rule: /er/ for worm. Her first purple worm learns", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/wor.mp3" },
-           { letters: "ear", type: "rule", target: "/er/  for learns and the rule: /er/ for learns. Her first purple worm learns", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/er.mp3" },
-           { letters: "ee", type: "rule", target: "/ee/  and the rule: /ee/ 2 e's will always say /ee/", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ee.mp3" },
+           { letters: "wor", type: "rule", target: "/er/ for worm and the rule: /er/ for worm. Her first purple worm learns", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/wor.mp3" },
+           { letters: "ear", type: "rule", target: "/er/ for learns and the rule: /er/ for learns. Her first purple worm learns", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/er.mp3" },
+           { letters: "ee", type: "rule", target: "/ee/ and the rule: /ee/ 2 e's will always say /ee/", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ee.mp3" },
            { letters: "th", type: "rule", target: "Two sounds: /th/ unvoiced for thin, /th/ voiced for this. Rule: motor off, motor on", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/th.mp3" },
-            { letters: "ch", type: "sound", target: "Three sounds: /ch/ like for chip, /kuh/ like for school, and /sh/ like for chef", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ch.mp3" },
-            { letters: "ph", type: "rule", target: "/f/ Rule: /f/ with 2 letters", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ph.mp3" },
-            { letters: "wh", type: "rule", target: "/wh/ unvoiced for white, Rule: blow out your candle", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/wh.mp3" },
-            { letters: "oy", type: "rule", target: "/oy/ Rule: to be used at the end of English words", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/oy.mp3" },
-            { letters: "oi", type: "rule", target: "/oy/ Rule: Cannot be used at the end of English words because English words cannot end with i", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/oi.mp3" },
-            { letters: "ay", type: "rule", target: "/ay/ Rule: /ay/ with 2 letters that can be used at the end of English words", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ay.mp3" },
-            { letters: "ai", type: "rule", target: "/ai/ Rule: /ay/ with 2 letters that cannot be used at the end of English words because English words cannot end with i", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/oi.mp3" },
-            { letters: "oo", type: "sound", target: "/oo/ like for school, /ouh/ like for book, and /oh/ like for door.", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/oo.mp3" },
-            { letters: "oa", type: "rule", target: "/oh/ Rule: /oh/ like for float", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/oa.mp3" },
-            { letters: "oe", type: "rule", target: "/oh/ Rule: /oh/ like for toe", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/oe.mp3" },
-            { letters: "ow", type: "sound", target: "Two sounds: /ow/ like for cow, and /oh/ like for grow", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ow.mp3" },
-            { letters: "ou", type: "sound", target: "Four sounds: /ow/ like for out, /oh/ like for four, /oo/ like for you, and /uh/ like for trouble", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ou.mp3" },
-            { letters: "ed", type: "sound", target: "Three sounds: /ed/ like for red, /duh/ like for called, and /t/ like for walked", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ed.mp3" },
-            { letters: "ea", type: "sound", target: "Three sounds: /ee/ like for read, /eh/ like for bread, and /ay/ like for great", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ea.mp3" },
-            { letters: "ar", type: "sound", target: "/ar/ like for car", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ar.mp3" },
-            { letters: "ck", type: "rule", target: "/kuh/ Rule: /kuh/ with 2 letters", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ck.mp3" },
-            { letters: "wr", type: "rule", target: "/ruh/ Rule: /ruh/ with 2 letters", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/wr.mp3" },
-            { letters: "tch", type: "rule", target: "/ch/ Rule: /tch with 3 letters", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/tch.mp3" },
-            { letters: "dge", type: "rule", target: "/juh/ Rule: /juh with 3 letters", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/dge.mp3" },
-            { letters: "aw", type: "rule", target: "/aw/ Rule: /aw/ to use at the end of English words", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/aw.mp3" },
-            { letters: "au", type: "rule", target: "/aw/ Rule: /aw cannot be used at the end of English words because English words cannot end with u", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/au.mp3" },
-            { letters: "kn", type: "rule", target: "/n/ Rule: /n/ with 2 letters can only be used at the beginning of English words", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/kn.mp3" },
-            { letters: "gn", type: "rule", target: "/n/ Rule: /n/ with 2 letters can be used at the beginning or the end of English words", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/gn.mp3" },
-            { letters: "or", type: "sound", target: "/or/ like for order", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/or.mp3" },
-            { letters: "ng", type: "sound", target: "/ng/ like for ring", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ng.mp3" },
-            { letters: "ew", type: "rule", target: "/ew/ Rule: /ew/ to be used at the end of English words", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ew.mp3" },
-            { letters: "ui", type: "rule", target: "/ew/ Rule: /ew/ Cannot be used at the end of English words because English words cannot end with i", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ui.mp3" },
-            { letters: "ey", type: "sound", target: "Two sounds: /ay/ like for they, and /ee/ like for key", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ey.mp3" },
-            { letters: "ie", type: "sound", target: "Two sounds: /ee/ like for theif, and /ie/ like for pie", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ie.mp3" },
-            { letters: "igh", type: "rule", target: "/eye/ Rule: /eye/ with 3 letters", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/igh.mp3" },
-            { letters: "ei", type: "sound", target: "Four sounds: /ee/ like for either, /ay/ like for vein, and /ih/ like for forfeit", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ei.mp3" },
-            { letters: "eigh", type: "rule", target: "/ay/ Rule: /ay/ with four letters", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/eigh.mp3" },
-            { letters: "ci", type: "rule", target: "/sh/ Rule: short /sh/ Must be followed by a vowel", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ci.mp3" },
-            { letters: "si", type: "rule", target: "/sh/ Rule: Cannot be used at the end of English words because English words cannot end with i", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/oi.mp3" },
-            { letters: "sh", type: "sound", target: "Two sounds: /sh/ for tension, and /zh/ for vision Rule: Must be followed by a vowel", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/si.mp3" },
-            { letters: "ough", type: "sound", target: "Six sounds: /oh/ like for though, /oo/ like for through, /uff/ like for rough, /off/, like for cough, /ah/ like for thought, and /ow/ like for bough", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ough.mp3" },
-            { letters: "qu", type: "rule", target: "kw and the rule: Always write a q with a u", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/qu.mp3" },
-            { letters: "ti", type: "rule", target: "/sh/ and the rule: tall /sh/ must be followed by a vowel", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ti.mp3" },
-            { letters: "ir", type: "rule", target: "/er/ for first and the rule: /er/ for first. Her first purple worm learns", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ir.mp3" }
+           { letters: "ch", type: "sound", target: "Three sounds: /ch/ like for chip, /kuh/ like for school, and /sh/ like for chef", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ch.mp3" },
+           { letters: "ph", type: "rule", target: "/f/ Rule: /f/ with 2 letters", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ph.mp3" },
+           { letters: "wh", type: "rule", target: "/wh/ unvoiced for white, Rule: blow out your candle", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/wh.mp3" },
+           { letters: "oy", type: "rule", target: "/oy/ Rule: to be used at the end of English words", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/oy.mp3" },
+           { letters: "oi", type: "rule", target: "/oy/ Rule: Cannot be used at the end of English words because English words cannot end with i", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/oi.mp3" },
+           { letters: "ay", type: "rule", target: "/ay/ Rule: /ay/ with 2 letters that can be used at the end of English words", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ay.mp3" },
+           { letters: "ai", type: "rule", target: "/ai/ Rule: /ay/ with 2 letters that cannot be used at the end of English words because English words cannot end with i", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/oi.mp3" },
+           { letters: "oo", type: "sound", target: "/oo/ like for school, /ouh/ like for book, and /oh/ like for door.", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/oo.mp3" },
+           { letters: "oa", type: "rule", target: "/oh/ Rule: /oh/ like for float", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/oa.mp3" },
+           { letters: "oe", type: "rule", target: "/oh/ Rule: /oh/ like for toe", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/oe.mp3" },
+           { letters: "ow", type: "sound", target: "Two sounds: /ow/ like for cow, and /oh/ like for grow", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ow.mp3" },
+           { letters: "ou", type: "sound", target: "Four sounds: /ow/ like for out, /oh/ like for four, /oo/ like for you, and /uh/ like for trouble", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ou.mp3" },
+           { letters: "ed", type: "sound", target: "Three sounds: /ed/ like for red, /duh/ like for called, and /t/ like for walked", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ed.mp3" },
+           { letters: "ea", type: "sound", target: "Three sounds: /ee/ like for read, /eh/ like for bread, and /ay/ like for great", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ea.mp3" },
+           { letters: "ar", type: "sound", target: "/ar/ like for car", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ar.mp3" },
+           { letters: "ck", type: "rule", target: "/kuh/ Rule: /kuh/ with 2 letters", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ck.mp3" },
+           { letters: "wr", type: "rule", target: "/ruh/ Rule: /ruh/ with 2 letters", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/wr.mp3" },
+           { letters: "tch", type: "rule", target: "/ch/ Rule: /tch with 3 letters", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/tch.mp3" },
+           { letters: "dge", type: "rule", target: "/juh/ Rule: /juh with 3 letters", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/dge.mp3" },
+           { letters: "aw", type: "rule", target: "/aw/ Rule: /aw/ to use at the end of English words", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/aw.mp3" },
+           { letters: "au", type: "rule", target: "/aw/ Rule: /aw cannot be used at the end of English words because English words cannot end with u", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/au.mp3" },
+           { letters: "kn", type: "rule", target: "/n/ Rule: /n/ with 2 letters can only be used at the beginning of English words", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/kn.mp3" },
+           { letters: "gn", type: "rule", target: "/n/ Rule: /n/ with 2 letters can be used at the beginning or the end of English words", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/gn.mp3" },
+           { letters: "or", type: "sound", target: "/or/ like for order", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/or.mp3" },
+           { letters: "ng", type: "sound", target: "/ng/ like for ring", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ng.mp3" },
+           { letters: "ew", type: "rule", target: "/ew/ Rule: /ew/ to be used at the end of English words", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ew.mp3" },
+           { letters: "ui", type: "rule", target: "/ew/ Rule: /ew/ Cannot be used at the end of English words because English words cannot end with i", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ui.mp3" },
+           { letters: "ey", type: "sound", target: "Two sounds: /ay/ like for they, and /ee/ like for key", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ey.mp3" },
+           { letters: "ie", type: "sound", target: "Two sounds: /ee/ like for theif, and /ie/ like for pie", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ie.mp3" },
+           { letters: "igh", type: "rule", target: "/eye/ Rule: /eye/ with 3 letters", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/igh.mp3" },
+           { letters: "ei", type: "sound", target: "Four sounds: /ee/ like for either, /ay/ like for vein, and /ih/ like for forfeit", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ei.mp3" },
+           { letters: "eigh", type: "rule", target: "/ay/ Rule: /ay/ with four letters", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/eigh.mp3" },
+           { letters: "ci", type: "rule", target: "/sh/ Rule: short /sh/ Must be followed by a vowel", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ci.mp3" },
+           { letters: "si", type: "rule", target: "/sh/ Rule: Cannot be used at the end of English words because English words cannot end with i", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/oi.mp3" },
+           { letters: "sh", type: "sound", target: "Two sounds: /sh/ for tension, and /zh/ for vision Rule: Must be followed by a vowel", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/si.mp3" },
+           { letters: "ough", type: "sound", target: "Six sounds: /oh/ like for though, /oo/ like for through, /uff/ like for rough, /off/, like for cough, /ah/ like for thought, and /ow/ like for bough", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ough.mp3" },
+           { letters: "qu", type: "rule", target: "kw and the rule: Always write a q with a u", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/qu.mp3" },
+           { letters: "ti", type: "rule", target: "/sh/ and the rule: tall /sh/ must be followed by a vowel", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ti.mp3" },
+           { letters: "ir", type: "rule", target: "/er/ for first and the rule: /er/ for first. Her first purple worm learns", audioSrc: "https://mdaniel70.github.io/phonoapp/audio/ir.mp3" }
         ];
-        let sessionPhonograms = []; // This will hold our random 20
+
+        // --- STATE VARIABLES ---
+        let sessionPhonograms = [];
+        let currentIndex = 0;
         let score = 0;
         let cardsProcessed = 0;
-        const SESSION_LIMIT = 20; 
-
-        // Add this shuffle function to keep things random
-        function shuffle(array) {
-            return array.sort(() => Math.random() - 0.5);
-        }
-        let currentIndex = 0;
         let stickers = 0;
         let attempts = 0;
+        let highScore = localStorage.getItem('phonoHighScore') || 0;
+
+        // Audio variables
         let mediaRecorder = null;
         let audioChunks = [];
         let isCoolingDown = false; 
@@ -146,20 +169,56 @@
         let dataArray = null;
         let source = null;
 
+        // UI References
         const mainBtn = document.getElementById('main-btn');
         const statusMsg = document.getElementById('status-msg');
         const cardLetters = document.getElementById('card-letters');
         const cardLoader = document.getElementById('card-loader');
 
+        // --- HELPER: SHUFFLE ARRAY ---
+        function shuffle(array) {
+            return array.sort(() => Math.random() - 0.5);
+        }
+
+        // --- INITIALIZATION ---
         window.addEventListener('load', () => { 
-            // Shuffle and pick the first 20 (or all if you have fewer than 20)
+            // 1. Show saved High Score
+            document.getElementById('high-score-display').innerText = `🏆 Best: ${highScore}%`;
+            
+            // 2. Shuffle and prepare session
             sessionPhonograms = shuffle([...phonograms]).slice(0, SESSION_LIMIT);
+            
+            // 3. Load first card
             updateCard(); 
         });
 
+        // --- HIGH SCORE LOGIC ---
+        function checkHighScore(finalScore, totalCards) {
+            const currentPercent = Math.round((finalScore / totalCards) * 100);
+            
+            if (currentPercent > highScore) {
+                highScore = currentPercent;
+                localStorage.setItem('phonoHighScore', highScore);
+                document.getElementById('high-score-display').innerText = `🏆 Best: ${highScore}%`;
+                return true; 
+            }
+            return false;
+        }
+
+        // --- PROGRESS BAR LOGIC ---
+        function updateProgressBar() {
+            const progressBar = document.getElementById('progress-bar');
+            // Calculate percentage based on how many cards we've PROCESSED (finished)
+            const progress = (cardsProcessed / sessionPhonograms.length) * 100;
+            progressBar.style.width = `${progress}%`;
+        }
        
-            function updateCard() {
-            const current = sessionPhonograms[currentIndex]; // Use the random list
+        // --- UPDATE CARD DISPLAY ---
+        function updateCard() {
+            const current = sessionPhonograms[currentIndex];
+            
+            updateProgressBar();
+            
             cardLetters.innerText = current.letters;
             cardLetters.style.display = 'block';
             cardLoader.style.display = 'none';
@@ -168,6 +227,7 @@
             statusMsg.className = "mt-4 text-gray-500 font-medium uppercase tracking-widest text-sm text-center px-4";
         }
 
+        // --- RECORDING BUTTON LOGIC ---
         mainBtn.addEventListener('click', async () => {
             if (isCoolingDown) return;
             if (!mediaRecorder || mediaRecorder.state === "inactive") {
@@ -188,6 +248,7 @@
                     source.connect(analyser);
                     dataArray = new Uint8Array(analyser.frequencyBinCount);
 
+                    // Setup Visualizer
                     const container = document.getElementById('visualizer-container');
                     container.innerHTML = '';
                     const barElements = [];
@@ -237,6 +298,7 @@
             }
         });
 
+        // --- SEND AUDIO TO AI ---
         async function processAudio(blob) {
             cardLetters.style.display = 'none';
             cardLoader.style.display = 'block';
@@ -245,9 +307,9 @@
             reader.onloadend = async () => {
                 const base64Audio = reader.result.split(',')[1];
                 const payload = {
-                    phonogram: phonograms[currentIndex].letters,
-                    type: phonograms[currentIndex].type,
-                    target: phonograms[currentIndex].target,
+                    phonogram: sessionPhonograms[currentIndex].letters,
+                    type: sessionPhonograms[currentIndex].type,
+                    target: sessionPhonograms[currentIndex].target,
                     audio: base64Audio
                 };
 
@@ -273,25 +335,25 @@
             };
         }
 
+        // --- HANDLE RESULT ---
         function handleVerdict(isCorrect) {
             cardLoader.style.display = 'none';
             cardLetters.style.display = 'block';
             
             if (isCorrect) {
-            statusMsg.innerText = "YES! YOU ARE CORRECT!";
-            statusMsg.className = "mt-4 text-green-600 font-bold uppercase tracking-widest text-sm text-center px-4";
-            
-            if (attempts === 0) {
-                score++; // POINT EARNED!
-                playSuccessChord();
-            } else {
-                playDing(); // No point for the score, but they still pass the card
-            }
-            
-            addSticker();
-            attempts = 0; 
-            setTimeout(moveToNextCard, 2000);
-        }
+                statusMsg.innerText = "YES! YOU ARE CORRECT!";
+                statusMsg.className = "mt-4 text-green-600 font-bold uppercase tracking-widest text-sm text-center px-4";
+                
+                if (attempts === 0) {
+                    score++; // POINT EARNED!
+                    playSuccessChord();
+                } else {
+                    playDing(); // Correct, but no point
+                }
+                
+                addSticker();
+                attempts = 0; 
+                setTimeout(moveToNextCard, 2000);
             } else {
                 // FAILURE LOGIC
                 attempts++;
@@ -299,13 +361,13 @@
                 
                 if (attempts === 1) {
                     statusMsg.innerText = "Try one more time!";
-                    setTimeout(() => { updateCard(); resetButton(); }, 2500);
+                    setTimeout(() => { resetButton(); }, 2000);
                 } else if (attempts === 2) {
                     statusMsg.innerText = "Listen and try one last time!";
                     const audioPlayer = document.getElementById('teacher-audio');
-                    audioPlayer.src = phonograms[currentIndex].audioSrc;
+                    audioPlayer.src = sessionPhonograms[currentIndex].audioSrc;
                     audioPlayer.play();
-                    setTimeout(() => { updateCard(); resetButton(); }, 4000);
+                    setTimeout(() => { resetButton(); }, 4000);
                 } else {
                     statusMsg.innerText = "Let's move to the next one.";
                     attempts = 0; 
@@ -314,9 +376,11 @@
             }
         }
 
-       function moveToNextCard() {
+        // --- NAVIGATION & END GAME ---
+        function moveToNextCard() {
             cardsProcessed++;
             
+            // Check if session is done
             if (cardsProcessed >= sessionPhonograms.length) {
                 showFinalResults();
             } else {
@@ -327,17 +391,47 @@
         }
 
         function showFinalResults() {
-            // Hide everything and show the score
+            // Fill progress bar to 100% and turn green
+            const progressBar = document.getElementById('progress-bar');
+            progressBar.style.width = '100%';
+            progressBar.classList.replace('bg-purple-600', 'bg-green-500');
+
             const percent = Math.round((score / sessionPhonograms.length) * 100);
-            cardLetters.innerHTML = `<div class='text-4xl'>Session Complete!</div><div class='text-6xl mt-4'>${score}/${sessionPhonograms.length}</div>`;
-            statusMsg.innerText = `Great job! You got ${percent}% correct on the first try.`;
-            statusMsg.className = "mt-4 text-purple-600 font-bold text-lg text-center px-4";
+            const isNewRecord = checkHighScore(score, sessionPhonograms.length);
+
+            let message = `Great job! You got ${percent}% correct on the first try.`;
+            let title = "Session Complete!";
+            let titleColor = "text-gray-800";
+
+            if (isNewRecord) {
+                title = "🎉 NEW HIGH SCORE! 🎉";
+                titleColor = "text-yellow-600";
+                message = `AMAZING! You beat your old record! You got ${percent}%!`;
+                playSuccessChord(); // Play the happy chord again!
+            }
+
+            cardLetters.innerHTML = `
+                <div class='text-3xl font-bold ${titleColor}'>${title}</div>
+                <div class='text-6xl mt-6 font-bold text-purple-600'>${score}/${sessionPhonograms.length}</div>
+            `;
+            
+            statusMsg.innerText = message;
+            statusMsg.className = "mt-6 text-purple-600 font-bold text-lg text-center px-4";
             
             mainBtn.innerText = "START NEW SESSION";
-            mainBtn.onclick = () => location.reload(); // Quickest way to restart
+            mainBtn.classList.replace('bg-gray-400', 'bg-purple-600');
+            mainBtn.onclick = () => location.reload();
         }
 
+        function resetButton() {
+            isCoolingDown = false;
+            mainBtn.innerText = "PUSH TO SPEAK";
+            mainBtn.className = "bg-purple-600 hover:bg-purple-700 text-white text-xl font-bold py-6 px-12 rounded-2xl shadow-lg transform transition active:scale-95";
+        }
+
+        // --- AUDIO SOUNDS ---
         function playDing() {
+            if (!audioContext) return;
             const ctx = audioContext;
             const osc = ctx.createOscillator();
             const g = ctx.createGain();
@@ -347,8 +441,8 @@
             osc.start(); osc.stop(ctx.currentTime + 0.5);
         }
 
-        // --- YOUR SUCCESS CHORD ---
         function playSuccessChord() {
+            if (!audioContext) return;
             const ctx = audioContext;
             const now = ctx.currentTime;
             [523.25, 659.25, 783.99].forEach((freq, i) => {
